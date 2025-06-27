@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  user-api:
+    build:
+      context: .
+      dockerfile: user/Dockerfile
+    restart: unless-stopped
+    environment:  
+      TZ: Asia/Bangkok
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./user:/app/user
+      - ./core:/app/core
+      - ./modelAi:/app/modelAi
+    networks:
+      - ecp-ai
+
+  data-api:
+    build:
+      context: .
+      dockerfile: data/Dockerfile
+    restart: unless-stopped
+    environment:  
+      TZ: Asia/Bangkok
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./data:/app/data
+      - ./core:/app/core
+      - ./modelAi:/app/modelAi
+    networks:
+      - ecp-ai
+  
+  chat-api:
+    build:
+      context: .
+      dockerfile: chat/Dockerfile
+    restart: unless-stopped
+    environment:  
+      TZ: Asia/Bangkok
+    ports:
+      - "8020:8020"
+    volumes:
+      - ./chat:/app/chat
+      - ./core:/app/core
+      - ./modelAi:/app/modelAi
+    networks:
+      - ecp-ai
+
+  dashboard-api:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    restart: unless-stopped
+    environment:  
+      TZ: Asia/Bangkok
+    ports:
+      - "8030:8030"
+    volumes:
+      - ./dashboard:/app/dashboard
+      - ./core:/app/core
+      - ./modelAi:/app/modelAi
+    networks:
+      - ecp-ai
+
+networks:
+  ecp-ai:
