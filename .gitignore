@@ -2,7 +2,7 @@
 
 # dependencies
 /.venv
-/dashboard\nomic-embed-text-v2-moe
+/dashboard/nomic-embed-text-v2-moe
 /node_modules
 /.pnp
 .pnp.*
