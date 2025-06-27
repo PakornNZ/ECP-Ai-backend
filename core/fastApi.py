@@ -12,14 +12,9 @@ import urllib.parse
 import jwt
 from jwt import PyJWTError
 
-# * dev
 from core.database import *
 from core.model import  *
 from core.schema import *
-# * prod
-# from database import *
-# from model import  *
-# from schema import *
 
 # ! API Setup
 app = FastAPI(
@@ -29,11 +24,7 @@ app = FastAPI(
                 # docs_url=None, 
                 # redoc_url=None
             )
-# * อนุญาติสิทธิ์ใช้งาน API
-origins = [
-    "http://localhost",
-    # "http://172.25.11.63"
-]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
