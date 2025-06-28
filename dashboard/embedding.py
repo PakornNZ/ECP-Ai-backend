@@ -9,25 +9,41 @@ from docx.text.paragraph import Paragraph
 import json
 from typhoon_ocr import ocr_document
 import tempfile
-import tiktoken
 from sentence_transformers import SentenceTransformer
+
+from transformers import AutoTokenizer
+# import tiktoken
 import re
 from dotenv import load_dotenv
 load_dotenv()
 
+tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-m3")
 
-def get_data_chunk(data_text, max_tokens: int = 512, overlap: int = 50):
-    encoding = tiktoken.get_encoding("cl100k_base")
+def get_data_chunk(data_text: str, max_tokens: int, overlap: int = 50) -> list[str]:
     cleaned_text = clean_text(data_text)
-    tokens = encoding.encode(cleaned_text)
+    tokens = tokenizer.encode(cleaned_text, add_special_tokens=False)
+    
     chunks = []
     start = 0
     while start < len(tokens):
         end = min(start + max_tokens, len(tokens))
-        chunk = encoding.decode(tokens[start:end])
+        chunk = tokenizer.decode(tokens[start:end])
         chunks.append(chunk)
         start += max_tokens - overlap
     return chunks
+
+# def get_data_chunk(data_text, max_tokens: int = 512, overlap: int = 50):
+#     encoding = tiktoken.get_encoding("cl100k_base")
+#     cleaned_text = clean_text(data_text)
+#     tokens = encoding.encode(cleaned_text)
+#     chunks = []
+#     start = 0
+#     while start < len(tokens):
+#         end = min(start + max_tokens, len(tokens))
+#         chunk = encoding.decode(tokens[start:end])
+#         chunks.append(chunk)
+#         start += max_tokens - overlap
+#     return chunks
 
 def clean_text(text: str) -> str:
     text = re.sub(r'\n{2,}', '\n', text)
@@ -36,14 +52,19 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 def model_embed(chunks: list[str]) -> list[list[float]]:
-    model = SentenceTransformer(
-        "./nomic-embed-text-v2-moe", 
-        trust_remote_code=True
-    )
-    embeddings = model.encode(chunks, show_progress_bar=True, prompt_name="passage")
+    model = SentenceTransformer("./models/bge-m3")
+    embeddings = model.encode(chunks, show_progress_bar=True, normalize_embeddings=True)
     return embeddings
 
-async def extract_data_from_file(file_bytes: bytes, file_type: str) -> list[list[float]]:
+# def model_embed(chunks: list[str]) -> list[list[float]]:
+#     model = SentenceTransformer(
+#         "./nomic-embed-text-v2-moe", 
+#         trust_remote_code=True
+#     )
+#     embeddings = model.encode(chunks, show_progress_bar=True, prompt_name="passage")
+#     return embeddings
+
+async def extract_data_from_file(file_bytes: bytes, file_type: str) -> str:
     data_text = []
 
     match file_type :
@@ -52,8 +73,6 @@ async def extract_data_from_file(file_bytes: bytes, file_type: str) -> list[list
                 data_text.append(file_bytes.decode('utf-8'))
             except UnicodeDecodeError:
                 data_text.append(file_bytes.decode('latin1'))
-            data_text = "\n".join(data_text)
-            chunks = get_data_chunk(data_text)
         case 'pdf':
             with BytesIO(file_bytes) as pdf_stream:
                 contents = PdfReader(pdf_stream)
@@ -74,8 +93,6 @@ async def extract_data_from_file(file_bytes: bytes, file_type: str) -> list[list
                         )
                         data_text.append(ocr_text)
                     os.unlink(tmp_file_path)
-            data_text = "\n".join(data_text)
-            chunks = get_data_chunk(data_text)
         case 'docx':
             with BytesIO(file_bytes) as doc_stream:
                 contents = Document(doc_stream)
@@ -94,14 +111,14 @@ async def extract_data_from_file(file_bytes: bytes, file_type: str) -> list[list
                                     row_data.append(cell_text)
                             if row_data:
                                 data_text.append("\t".join(row_data))
-            data_text = "\n".join(data_text)
-            chunks = get_data_chunk(data_text)
         case 'json':
             json_data = json.loads(file_bytes.decode('utf-8'))
             data_text = json.dumps(json_data, indent=2)
-            chunks = get_data_chunk(data_text)
     
-    if not data_text:
+    data_text = "\n".join(data_text)
+    if not data_text.strip():
         return []
-    
+    return data_text
+
+    chunks = get_data_chunk(data_text)
     return model_embed(chunks)

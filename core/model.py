@@ -77,13 +77,25 @@ class RagFiles(SQLModel, table = True):
     name: Optional[str] = None
     detail: Optional[str] = None
     type: Optional[str] = None
+    chunk: Optional[str] = None
     file_path: Optional[str] = None
-    vector_data: Optional[List[float]] = Field(
-        sa_column=Column(Vector(768))
-    )
     create_at: Optional[datetime] = Field(default_factory=datetime.now)
     update_at: Optional[datetime] = Field(default_factory=datetime.now)
     webuser: Optional[WebUsers] = Relationship(back_populates="ragfiles")
+    ragchunks: List["RagChunks"] = Relationship(back_populates="ragfiles")
+
+
+class RagChunks(SQLModel, table = True):
+    __tablename__ = "rag_chunks"
+    chunk_id: int | None = Field(default=None, primary_key=True)
+    rag_file_id: Optional[int] = Field(default=None, foreign_key="rag_files.rag_file_id", ondelete="SET NULL")
+    content: Optional[str] = None
+    vector: Optional[List[float]] = Field(
+        sa_column=Column(Vector(1024))
+    )
+    chunk_index: Optional[int] = None
+    create_at: Optional[datetime] = Field(default_factory=datetime.now)
+    ragfiles: Optional[RagFiles] = Relationship(back_populates="ragchunks")
 
 
 class WebChats(SQLModel, table = True):

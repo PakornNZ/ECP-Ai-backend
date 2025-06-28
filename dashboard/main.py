@@ -1,7 +1,7 @@
 from core.fastApi import *
 from utils.file_embed import *
 from pathlib import Path
-from embedding import extract_data_from_file
+from embedding import extract_data_from_file, get_data_chunk, model_embed
 
 SAVE_FILE = Path() / "files_storage"
 @app.get("/dashboard/user", tags=["Dashboard"])
@@ -82,15 +82,7 @@ def dashboard_file(session: SessionDep, user = Depends(get_user)):
             )
         
         get_file_data = session.exec(
-            select(
-                RagFiles.rag_file_id,
-                RagFiles.name,
-                RagFiles.detail,
-                RagFiles.type,
-                RagFiles.web_user_id,
-                RagFiles.update_at,
-                RagFiles.create_at
-            )
+            select(RagFiles)
             .order_by(asc(RagFiles.rag_file_id))
         ).all()
 
@@ -100,13 +92,14 @@ def dashboard_file(session: SessionDep, user = Depends(get_user)):
                 "status": 1,
                 "message": "",
                 "data": [{
-                    "id": data[0],
-                    "name": data[1],
-                    "detail": data[2],
-                    "type": data[3],
-                    "user": data[4],
-                    "updatedAt": data[5].astimezone().isoformat(timespec="minutes").replace("+00:00", "Z"),
-                    "createdAt": data[6].astimezone().isoformat(timespec="minutes").replace("+00:00", "Z")
+                    "id": data.rag_file_id,
+                    "name": data.name,
+                    "detail": data.detail,
+                    "type": data.type,
+                    "chunk": data.chunk,
+                    "user": data.web_user_id,
+                    "updatedAt": data.update_at.astimezone().isoformat(timespec="minutes").replace("+00:00", "Z"),
+                    "createdAt": data.create_at.astimezone().isoformat(timespec="minutes").replace("+00:00", "Z")
                     } for data in get_file_data
                 ]
             }
@@ -527,6 +520,7 @@ async def dashboard_upload_file(
         user = Depends(get_user),
         name: Annotated[Optional[str], Form()] = None,
         detail: Annotated[Optional[str], Form()] = None,
+        chunk: Annotated[Optional[str], Form()] = None
     ):
 
     try:
@@ -579,9 +573,11 @@ async def dashboard_upload_file(
                     }
                 )
             
-            vector_data = await extract_data_from_file(data_file, type_file[1])
+            data_text = await extract_data_from_file(data_file, type_file[1])
+            data_chunk = get_data_chunk(data_text, int(chunk))
+            data_vector = model_embed(data_chunk)
 
-            if vector_data is None or len(vector_data) == 0:
+            if data_vector is None or len(data_vector) == 0:
                 return JSONResponse(
                     status_code=422,
                     content={
@@ -591,45 +587,55 @@ async def dashboard_upload_file(
                     }
                 )
             
-            print(vector_data)
-        #     save_file = SAVE_FILE / file.filename
-        #     with open(save_file, "wb") as f:
-        #         f.write(data_file)
+            save_file = SAVE_FILE / file.filename
+            with open(save_file, "wb") as f:
+                f.write(data_file)
 
-        #     upload_file = RagFiles(
-        #         web_user_id=user["id"],
-        #         name=name,
-        #         detail=detail,
-        #         type=type_file[1],
-        #         file_path=str(save_file),
-        #         vector_data=vector_data,
-        #         update_at=datetime.now(),
-        #         create_at=datetime.now()
-        #     )
+            upload_file = RagFiles(
+                web_user_id=user["id"],
+                name=name,
+                detail=detail,
+                type=type_file[1],
+                chunk=chunk,
+                file_path=str(save_file),
+                update_at=datetime.now(),
+                create_at=datetime.now()
+            )
 
-        #     session.add(upload_file)
-        #     session.commit()
-        #     session.refresh(upload_file)
+            session.add(upload_file)
+            session.commit()
+            session.refresh(upload_file)
 
-        #     return_file = {
-        #         "id": upload_file.rag_file_id,
-        #         "name": upload_file.name,
-        #         "detail": upload_file.detail,
-        #         "type": upload_file.type,
-        #         "user": upload_file.web_user_id,
-        #         "updatedAt": upload_file.update_at.astimezone().isoformat(timespec="minutes").replace("+00:00", "Z"),
-        #         "createdAt": upload_file.create_at.astimezone().isoformat(timespec="minutes").replace("+00:00", "Z")
-        #     }
+            for idx, (chunk_text, vector) in enumerate(zip(data_chunk, data_vector)):
+                upload_chunk = RagChunks(
+                    rag_file_id=upload_file.rag_file_id,
+                    content=chunk_text,
+                    vector=vector.tolist(),
+                    chunk_index=idx
+                )
+                session.add(upload_chunk)
+            session.commit()
 
-        #     return_upload_file.append(return_file)
-        # return JSONResponse(
-        #     status_code=200,
-        #     content={
-        #         "status": 1, 
-        #         "message": "", 
-        #         "data": return_upload_file
-        #     }
-        # )
+            return_file = {
+                "id": upload_file.rag_file_id,
+                "name": upload_file.name,
+                "detail": upload_file.detail,
+                "type": upload_file.type,
+                "chunk": upload_file.chunk,
+                "user": upload_file.web_user_id,
+                "updatedAt": upload_file.update_at.astimezone().isoformat(timespec="minutes").replace("+00:00", "Z"),
+                "createdAt": upload_file.create_at.astimezone().isoformat(timespec="minutes").replace("+00:00", "Z")
+            }
+
+            return_upload_file.append(return_file)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 1, 
+                "message": "", 
+                "data": return_upload_file
+            }
+        )
     
     except Exception as error :
         return JSONResponse(
@@ -640,11 +646,7 @@ async def dashboard_upload_file(
                 "data": {}
             }
         )
-
-# @app.post("/test_file")
-# async def text_file(files: Annotated[List[UploadFile], File()]):
-#     await file_embed(files)
-        
+    
 
 @app.put("/dashboard/edit_user", tags=["Dashboard"])
 def dashboard_edit_user(data: DashboardEditUser, session: SessionDep, user = Depends(get_user)):
