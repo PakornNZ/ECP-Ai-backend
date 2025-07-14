@@ -1,7 +1,7 @@
 from uuid import uuid4
 from passlib.hash import bcrypt
 
-from core.fastApi import *
+from core.fastapi import *
 
 @app.post("/sign_up", tags=["USER"])
 def create_user(user: SignUpSchema, session: SessionDep):
@@ -695,11 +695,18 @@ def oauth_login(data: dict, session: SessionDep):
         account = data.get("account", {})
         user = data.get("user", {})
 
-        provider = account.get("provider")
-        provider_account_id = str(account.get("providerAccountId"))
-        access_token = account.get("accessToken")
-        refresh_token = account.get("refreshToken")
-        account_type = account.get("type", "oauth")
+        provider = account.get("provider", None)
+        provider_account_id = str(account.get("providerAccountId", None))
+        access_token = account.get("access_token", None)
+        refresh_token = account.get("refresh_token", None)
+        account_type = account.get("type", None)
+        expires_at = account.get("expires_at", None)
+        if expires_at:
+            expires_at = datetime.fromtimestamp(expires_at)
+        token_type = account.get("token_type", None)
+        scope = account.get("scope", None)
+        id_token = account.get("id_token", None)
+        session_state = account.get("session_state", None)
 
         if not provider or not provider_account_id:
             return JSONResponse(
@@ -710,7 +717,7 @@ def oauth_login(data: dict, session: SessionDep):
                     "data": {}
                 }
             )
-
+        
         existing_account = session.exec(
             select(Accounts).where(
                 Accounts.provider == provider,
@@ -721,8 +728,12 @@ def oauth_login(data: dict, session: SessionDep):
         if existing_account:
             existing_account.access_token = access_token
             existing_account.refresh_token = refresh_token
+            existing_account.expires_at = expires_at
+            existing_account.session_state = session_state
+            existing_account.id_token = id_token
+            session.add(existing_account)
             session.commit()
-
+            
             user_old = session.exec(select(WebUsers).where(WebUsers.web_user_id == existing_account.web_user_id)).first()
             if user_old:
                 return JSONResponse(
@@ -771,7 +782,7 @@ def oauth_login(data: dict, session: SessionDep):
                         "data": {}
                     }
                 )
-
+        
         user_obj = session.exec(select(WebUsers).where(WebUsers.email == email)).first()
         if not user_obj:
             user_obj = WebUsers(
@@ -791,8 +802,14 @@ def oauth_login(data: dict, session: SessionDep):
             web_user_id=user_obj.web_user_id,
             account_type=account_type,
             access_token=access_token,
-            refresh_token=refresh_token
+            refresh_token=refresh_token,
+            expires_at=expires_at,
+            token_type=token_type,
+            scope=scope,
+            id_token=id_token,
+            session_state=session_state
         )
+
         session.add(new_account)
         session.commit()
 

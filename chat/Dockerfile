@@ -2,10 +2,10 @@ FROM python:3.13-slim
 
 WORKDIR /app/chat
 
-COPY ../requirements.txt /app/requirements.txt
-COPY ../core /app/core
-COPY ../modelAi /app/modelAi
-COPY . /app
+COPY chat/requirements.txt /app/requirements.txt
+COPY core /app/core
+COPY response /app/response
+COPY chat /app/chat
 
 RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 

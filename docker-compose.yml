@@ -13,7 +13,6 @@ services:
     volumes:
       - ./user:/app/user
       - ./core:/app/core
-      - ./modelAi:/app/modelAi
     networks:
       - ecp-ai
 
@@ -29,7 +28,6 @@ services:
     volumes:
       - ./data:/app/data
       - ./core:/app/core
-      - ./modelAi:/app/modelAi
     networks:
       - ecp-ai
   
@@ -42,10 +40,17 @@ services:
       TZ: Asia/Bangkok
     ports:
       - "8020:8020"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              count: all
     volumes:
       - ./chat:/app/chat
       - ./core:/app/core
-      - ./modelAi:/app/modelAi
+      - ./response:/app/response
     networks:
       - ecp-ai
 
@@ -56,14 +61,21 @@ services:
     restart: unless-stopped
     environment:  
       TZ: Asia/Bangkok
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              count: all
     ports:
       - "8030:8030"
     volumes:
       - ./dashboard:/app/dashboard
       - ./core:/app/core
-      - ./modelAi:/app/modelAi
     networks:
       - ecp-ai
 
 networks:
   ecp-ai:
+    driver: bridge

@@ -1,6 +1,5 @@
-from core.fastApi import *
-from modelAi.model import *
-
+from core.fastapi import *
+from response.main import *
 
 @app.post("/chat/new_chat", tags=["CHAT"])
 def user_new_chat(session: SessionDep, user = Depends(get_user)):
@@ -38,7 +37,7 @@ def user_new_chat(session: SessionDep, user = Depends(get_user)):
 
 
 @app.put("/chat/new_topic", tags=["CHAT"])
-def user_new_topic(data: ResponeChatSchema, session: SessionDep, user = Depends(get_user)):
+async def user_new_topic(data: ResponeChatSchema, session: SessionDep, user = Depends(get_user)):
     
     try :
         update_topic_chat = session.exec(
@@ -56,7 +55,16 @@ def user_new_topic(data: ResponeChatSchema, session: SessionDep, user = Depends(
                 }
             )
         
-        response = ModelAi_Topic_Chat(data.query)
+        response = await modelAi_topic_chat(data.query)
+        if response == "":
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": 0,
+                    "message": "เกิดข้อผิดพลาดในการตอบคำถาม",
+                    "data": {}
+                }
+            )
 
         update_topic_chat.chat_name = response
         update_topic_chat.update_at = datetime.now()
@@ -88,7 +96,7 @@ def user_new_topic(data: ResponeChatSchema, session: SessionDep, user = Depends(
 
 
 @app.post("/chat/respone", tags=["CHAT"])
-def respone_answer (data: ResponeChatSchema, session: SessionDep, user = Depends(get_user)):
+async def respone_answer (data: ResponeChatSchema, session: SessionDep, user = Depends(get_user)):
 
     try :
         update_chat_at = session.exec(
@@ -105,12 +113,34 @@ def respone_answer (data: ResponeChatSchema, session: SessionDep, user = Depends
                     "data": {}
                 }
             )
-
-        respone = ModelAi_Response(data.query)
+            
+        recent_messages=session.exec(
+            select(WebMessages.query_message, WebMessages.response_message)
+            .where(WebMessages.web_chat_id==update_chat_at.web_chat_id)
+            .order_by(asc(WebMessages.create_at))
+            .limit(10)
+        ).all()
+        
+        recent_message_text = ""
+        if recent_messages:
+            for index, msg in enumerate(recent_messages, start=1):
+                recent_message_text += f"คำถามที่ {index}: {msg.query_message}\n"
+                recent_message_text += f"คำตอบที่ {index}: {msg.response_message}\n\n"
+        
+        response = await modelAi_response_user(data.query, recent_message_text, session) 
+        if response == "":
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": 0,
+                    "message": "เกิดข้อผิดพลาดในการตอบคำถาม",
+                    "data": {}
+                }
+            )
         newMessage = WebMessages(
             web_chat_id=data.chat_id,
             query_message=data.query,
-            response_message=respone,
+            response_message=response,
             rating=0
         )
 
@@ -138,38 +168,10 @@ def respone_answer (data: ResponeChatSchema, session: SessionDep, user = Depends
             status_code=500,
             content=str(error)
         )
-    
-
-@app.post("/chat/guest_response", tags=["CHAT"])
-def guest_response_answer (data: GuestResponeChatSchema):
-        
-    try :
-        respone = ModelAi_Response(data.message)
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": 1,
-                "message": "",
-                "data": {
-                    "answer": respone
-                }
-            }
-        )
-    except Exception as error :
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": 0,
-                "message": str(error),
-                "data": {}
-            }
-        )
-
 
 
 @app.put("/chat/edit_respone", tags=["CHAT"])
-def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep, user = Depends(get_user)):
+async def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep, user = Depends(get_user)):
 
     try :
         update_message = session.exec(
@@ -202,16 +204,40 @@ def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep, user 
                 }
             )
 
-        respone = ModelAi_Response(data.query)
+        recent_messages=session.exec(
+            select(WebMessages.query_message, WebMessages.response_message)
+            .where(WebMessages.web_chat_id==update_chat_at.web_chat_id)
+            .order_by(asc(WebMessages.create_at))
+            .limit(10)
+        ).all()
+        
+        recent_message_text = ""
+        if recent_messages:
+            recent_messages.pop(-1)
+            for index, msg in enumerate(recent_messages, start=1):
+                recent_message_text += f"คำถามที่ {index}: {msg.query_message}\n"
+                recent_message_text += f"คำตอบที่ {index}: {msg.response_message}\n\n"
+
+        response = await modelAi_response_user(data.query, recent_message_text, session) 
+        
+        if response == "":
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": 0,
+                    "message": "เกิดข้อผิดพลาดในการตอบคำถาม",
+                    "data": {}
+                }
+            )
         
         update_message.query_message = data.query
-        update_message.response_message = respone
+        update_message.response_message = response
         update_message.rating = 0
         update_message.update_at = datetime.now()
 
         session.add(update_message)
         session.commit()
-
+        print(f"Update Message: {update_message}")
         update_chat_at.update_at = datetime.now()
 
         session.add(update_chat_at)
@@ -224,7 +250,7 @@ def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep, user 
                 "message": "",
                 "data": {
                     "id": data.msg_id,
-                    "answer": respone
+                    "answer": response
                 }
             }
         )
@@ -239,7 +265,37 @@ def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep, user 
         )
 
 
-# ! รัน FastAPI
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8020)
+@app.post("/chat/guest_response", tags=["CHAT"])
+async def guest_response_answer (data: GuestResponeChatSchema, session: SessionDep):
+        
+    try :
+        response = await modelAi_response_guest(data.message, session)
+        if response == "":
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": 0,
+                    "message": "เกิดข้อผิดพลาดในการตอบคำถาม",
+                    "data": {}
+                }
+            )
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 1,
+                "message": "",
+                "data": {
+                    "answer": response
+                }
+            }
+        )
+    except Exception as error :
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 0,
+                "message": str(error),
+                "data": {}
+            }
+        )

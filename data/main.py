@@ -1,4 +1,4 @@
-from core.fastApi import *
+from core.fastapi import *
 
 @app.get("/user/verification_chat", tags=["DATA"])
 def verification_chat(chat_id: int, session: SessionDep, user = Depends(get_user)):

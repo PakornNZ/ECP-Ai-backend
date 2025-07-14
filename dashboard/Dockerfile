@@ -5,11 +5,9 @@ WORKDIR /app/dashboard
 RUN apt-get update && apt-get install -y \
     poppler-utils
 
-COPY ../requirements.txt /app/requirements.txt
-COPY ../core /app/core
-COPY ../modelAi /app/modelAi
-COPY ../utils /app/utils
-COPY . /app
+COPY dashboard/requirements.txt /app/requirements.txt
+COPY core /app/core
+COPY dashboard /app/dashboard
 
 RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 

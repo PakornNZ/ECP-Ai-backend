@@ -3,6 +3,9 @@
 # dependencies
 /.venv
 /dashboard/models
+/dashboard/files_storage
+/response/models
+/response/ollama-local
 /node_modules
 /.pnp
 .pnp.*
@@ -11,7 +14,7 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
+__pycache__/
 # testing
 /coverage
 

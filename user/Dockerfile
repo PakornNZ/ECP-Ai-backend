@@ -2,10 +2,9 @@ FROM python:3.13-slim
 
 WORKDIR /app/user
 
-COPY ../requirements.txt /app/requirements.txt
-COPY ../core /app/core
-COPY ../modelAi /app/modelAi
-COPY . /app
+COPY requirements.txt /app/requirements.txt
+COPY core /app/core
+COPY user /app/user
 
 RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 

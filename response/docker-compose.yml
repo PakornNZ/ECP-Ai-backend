@@ -1,0 +1,23 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    hostname: ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              count: all
+    ports:
+      - "11434:11434"
+    networks:
+      - ecp-ai
+    volumes:
+      - ./ollama-local:/root/.ollama
+
+networks:
+  ecp-ai:
+    driver: bridge

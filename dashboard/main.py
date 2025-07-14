@@ -1,7 +1,6 @@
-from core.fastApi import *
-from utils.file_embed import *
+from core.fastapi import *
 from pathlib import Path
-from embedding import extract_data_from_file, get_data_chunk, model_embed
+from embedding import *
 
 SAVE_FILE = Path() / "files_storage"
 @app.get("/dashboard/user", tags=["Dashboard"])
@@ -280,7 +279,7 @@ def dashboard_board(session: SessionDep, user = Depends(get_user)):
             .group_by(RagFiles.type)
         ).all()
 
-        file_types = ["pdf", "docx", "txt", "json"]
+        file_types = ["pdf", "docx", "txt", "csv"]
         file_count_map = {type: count for type, count in data_total_file}
 
         data_detail_file = []
@@ -520,7 +519,9 @@ async def dashboard_upload_file(
         user = Depends(get_user),
         name: Annotated[Optional[str], Form()] = None,
         detail: Annotated[Optional[str], Form()] = None,
-        chunk: Annotated[Optional[str], Form()] = None
+        chunk: Annotated[Optional[str], Form()] = None,
+        start: Annotated[Optional[str], Form()] = None,
+        stop: Annotated[Optional[str], Form()] = None
     ):
 
     try:
@@ -540,7 +541,7 @@ async def dashboard_upload_file(
             )
         
         return_upload_file = []
-        allowed_type = ['json', 'pdf', 'txt', 'docx']
+        allowed_type = ['csv', 'pdf', 'txt', 'docx']
 
         for file in files:
             data_file = await file.read()
@@ -572,9 +573,40 @@ async def dashboard_upload_file(
                         "data": {}
                     }
                 )
-            
-            data_text = await extract_data_from_file(data_file, type_file[1])
-            data_chunk = get_data_chunk(data_text, int(chunk))
+            if type_file[1] != "csv":
+                if type_file[1] == "pdf" and int(chunk) == 0:
+                    data_chunk = await extract_data_from_pdf(data_file, start, stop)
+                else:
+                    data_text = await extract_data_from_file(data_file, type_file[1], start, stop)
+
+                    if not data_text or data_text == "":
+                        return JSONResponse(
+                            status_code=422,
+                            content={
+                                "status": 0,
+                                "message": "ไม่พบข้อมูลในเอกสาร",
+                                "data": {}
+                            }
+                        )
+                    data_chunk = get_data_chunk(data_text, int(chunk), type_file[1])
+            else:
+                data_dict = extract_data_from_csv(data_file)
+
+                if not data_dict or len(data_dict) == 0:
+                    return JSONResponse(
+                        status_code=422,
+                        content={
+                            "status": 0,
+                            "message": "ไม่พบข้อมูลในเอกสาร CSV",
+                            "data": {}
+                        }
+                    )
+                lists = convert_record_to_text(data_dict)
+                data_chunk = []
+                for list_data in lists:
+                    chunk_text = get_data_chunk(list_data, int(chunk), type_file[1])
+                    data_chunk.extend(chunk_text)
+
             data_vector = model_embed(data_chunk)
 
             if data_vector is None or len(data_vector) == 0:
@@ -587,7 +619,7 @@ async def dashboard_upload_file(
                     }
                 )
             
-            save_file = SAVE_FILE / file.filename
+            save_file = SAVE_FILE / f"{name}.{type_file[1]}"
             with open(save_file, "wb") as f:
                 f.write(data_file)
 
