@@ -1,6 +1,6 @@
 from core.fastapi import *
 
-@app.get("/user/verification_chat", tags=["DATA"])
+@app.get("/user/verification_chat", tags=["USER"])
 def verification_chat(chat_id: int, session: SessionDep, user = Depends(get_user)):
 
     try :

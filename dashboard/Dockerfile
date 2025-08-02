@@ -2,8 +2,7 @@ FROM python:3.13-slim
 
 WORKDIR /app/dashboard
 
-RUN apt-get update && apt-get install -y \
-    poppler-utils
+RUN apt-get update && apt-get install -y poppler-utils
 
 COPY dashboard/requirements.txt /app/requirements.txt
 COPY core /app/core

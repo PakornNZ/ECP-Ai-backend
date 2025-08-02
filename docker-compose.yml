@@ -1,81 +1,59 @@
 version: '3.8'
 
 services:
-  user-api:
+  api-user:
     build:
       context: .
       dockerfile: user/Dockerfile
+    container_name: api-user
     restart: unless-stopped
     environment:  
       TZ: Asia/Bangkok
     ports:
       - "8000:8000"
     volumes:
-      - ./user:/app/user
-      - ./core:/app/core
-    networks:
-      - ecp-ai
+      - /home/ecpai/storage/section-api/user/user:/app/user/user
+      - /home/ecpai/storage/section-api/user/core:/app/user/core
 
-  data-api:
+  api-data:
     build:
       context: .
       dockerfile: data/Dockerfile
+    container_name: api-data
     restart: unless-stopped
     environment:  
       TZ: Asia/Bangkok
     ports:
       - "8010:8010"
     volumes:
-      - ./data:/app/data
-      - ./core:/app/core
-    networks:
-      - ecp-ai
+      - /home/ecpai/storage/section-api/data/data:/app/data/data
+      - /home/ecpai/storage/section-api/data/core:/app/data/core
   
-  chat-api:
+  api-chat:
     build:
       context: .
       dockerfile: chat/Dockerfile
+    container_name: api-chat
     restart: unless-stopped
     environment:  
       TZ: Asia/Bangkok
     ports:
       - "8020:8020"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-              count: all
     volumes:
-      - ./chat:/app/chat
-      - ./core:/app/core
-      - ./response:/app/response
-    networks:
-      - ecp-ai
+      - /home/ecpai/storage/section-api/chat/chat:/app/chat/chat
+      - /home/ecpai/storage/section-api/chat/core:/app/chat/core
+      - /home/ecpai/storage/section-api/chat/response:/app/chat/response
 
-  dashboard-api:
+  api-dashboard:
     build:
       context: .
       dockerfile: dashboard/Dockerfile
+    container_name: api-dashboard
     restart: unless-stopped
     environment:  
       TZ: Asia/Bangkok
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-              count: all
     ports:
       - "8030:8030"
     volumes:
-      - ./dashboard:/app/dashboard
-      - ./core:/app/core
-    networks:
-      - ecp-ai
-
-networks:
-  ecp-ai:
-    driver: bridge
+      - /home/ecpai/storage/section-api/dashboard/dashboard:/app/dashboard/dashboard
+      - /home/ecpai/storage/section-api/dashboard/core:/app/dashboard/core

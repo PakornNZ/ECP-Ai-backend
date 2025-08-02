@@ -117,17 +117,21 @@ async def respone_answer (data: ResponeChatSchema, session: SessionDep, user = D
         recent_messages=session.exec(
             select(WebMessages.query_message, WebMessages.response_message)
             .where(WebMessages.web_chat_id==update_chat_at.web_chat_id)
-            .order_by(asc(WebMessages.create_at))
-            .limit(10)
+            .order_by(desc(WebMessages.create_at))
+            .limit(5)
         ).all()
         
         recent_message_text = ""
+        recent_message_embed = ""
         if recent_messages:
-            for index, msg in enumerate(recent_messages, start=1):
-                recent_message_text += f"คำถามที่ {index}: {msg.query_message}\n"
-                recent_message_text += f"คำตอบที่ {index}: {msg.response_message}\n\n"
-        
-        response = await modelAi_response_user(data.query, recent_message_text, session) 
+            for index, msg in enumerate(recent_messages, 1):
+                query_index = f"คำถามที่ {index}" if index > 1 else "คำถามล่าสุด"
+                answer_index = f"คำตอบที่ {index}" if index > 1 else "คำตอบล่าสุด"
+                recent_message_text += f"{query_index}: {msg.query_message}\n"
+                recent_message_text += f"{answer_index}: {msg.response_message}\n\n"
+            recent_message_embed = f"{data.query}\n{recent_messages[0].response_message} {recent_messages[0].query_message}"
+
+        response = await modelAi_response_user(data.query, recent_message_text, recent_message_embed, session) 
         if response == "":
             return JSONResponse(
                 status_code=500,
@@ -207,18 +211,23 @@ async def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep,
         recent_messages=session.exec(
             select(WebMessages.query_message, WebMessages.response_message)
             .where(WebMessages.web_chat_id==update_chat_at.web_chat_id)
-            .order_by(asc(WebMessages.create_at))
-            .limit(10)
+            .order_by(desc(WebMessages.create_at))
+            .limit(5)
         ).all()
         
         recent_message_text = ""
+        recent_message_embed = ""
         if recent_messages:
-            recent_messages.pop(-1)
-            for index, msg in enumerate(recent_messages, start=1):
-                recent_message_text += f"คำถามที่ {index}: {msg.query_message}\n"
-                recent_message_text += f"คำตอบที่ {index}: {msg.response_message}\n\n"
+            recent_messages.pop(0)
+            if len(recent_messages) > 0:
+                for index, msg in enumerate(recent_messages, 1):
+                    query_index = f"คำถามที่ {index}" if index > 1 else "คำถามล่าสุด"
+                    answer_index = f"คำตอบที่ {index}" if index > 1 else "คำตอบล่าสุด"
+                    recent_message_text += f"{query_index}: {msg.query_message}\n"
+                    recent_message_text += f"{answer_index}: {msg.response_message}\n\n"
+                recent_message_embed = f"{data.query}\n{recent_messages[0].response_message} {recent_messages[0].query_message}"
 
-        response = await modelAi_response_user(data.query, recent_message_text, session) 
+        response = await modelAi_response_user(data.query, recent_message_text, recent_message_embed, session) 
         
         if response == "":
             return JSONResponse(

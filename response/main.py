@@ -1,45 +1,62 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from sentence_transformers import SentenceTransformer
-import torch
 import numpy as np
-
 from fastapi import Depends
 from core.model import  *
 from sqlmodel import select, text
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta
-
 import requests
+from dotenv import load_dotenv
+import os
+load_dotenv()
 
-
-model_embed = SentenceTransformer("/app/response/models/bge-m3")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
+RESPONSE_MODEL = os.getenv("RESPONSE_MODEL")
+OLLAMA_URL = os.getenv("OLLAMA_URL")
 
 def embedding_query(query: str) -> np.ndarray:
-    return model_embed.encode(query, show_progress_bar=True, normalize_embeddings=True)
-
+    payload = {
+        "model": EMBEDDING_MODEL,
+        "prompt": query
+    }
+    response = requests.post(OLLAMA_URL, json=payload)
+    response.raise_for_status()
+    embedding = np.array(response.json()["embedding"], dtype=np.float32)
+    norm = np.linalg.norm(embedding)
+    if norm > 0:
+        embedding = embedding / norm
+    return embedding
 
 async def modelAi_response_guest(query: str, session) -> str:
     vector_data, verify_date = search_retrieval(query, session)
 
-    message = [{"role": "system", "content": "คุณคือผู้ช่วยที่สามารถตอบคำถามตามข้อมูล และไม่ต้องกล่าวถึงเอกสารที่ใช้ในการตอบคำถาม"}]
+    message = [{"role": "system", "content": "คุณคือผู้ช่วยที่สามารถตอบคำถามตามข้อมูลที่ให้มา"}]
     if verify_date:
         message.append({"role": "user", "content": f"""{verify_date}"""})
+    message.append({"role": "user", "content": f"""ประวัติการสนทนาก่อนหน้า: -\n\n"""})
     message.append({"role": "user", "content": f"""ข้อมูล:\n{vector_data}"""})
     message.append({"role": "user", "content": f"""คำถาม: {query}"""})
 
-    model_generate_answer(message)
+    return await model_generate_answer(message)
 
 
-async def modelAi_response_user(query: str, recent_message_text: str, session) -> str:
-    vector_data, verify_date = search_retrieval(query, session)
+async def modelAi_response_user(query: str, recent_message_text: str, recent_message_embed: str, session) -> str:
+    vector_data = ""
+    verify_date = ""
 
+    print(f"recent_message_embed: {recent_message_embed}")
+    if recent_message_embed and len(recent_message_embed) > 0:
+        vector_data, verify_date = search_retrieval(recent_message_embed, session)
+    else:
+        vector_data, verify_date = search_retrieval(query, session)
+
+    print(f"recent_message_text: {recent_message_text}")
     print(f"vector_data: {vector_data}")
-    print(f"Recent Messages: {recent_message_text}")
-    message = [{"role": "system", "content": "คุณคือผู้ช่วยที่สามารถตอบคำถามตามข้อมูล และไม่ต้องกล่าวถึงเอกสารที่ใช้ในการตอบคำถาม"}]
+
+    message = [{"role": "system", "content": "คุณคือผู้ช่วยที่สามารถตอบคำถามตามเอกสารที่ให้มา"}]
     if verify_date:
         message.append({"role": "user", "content": f"""{verify_date}"""})
     message.append({"role": "user", "content": f"""ประวัติการสนทนาก่อนหน้า:\n{recent_message_text}\n\n"""})
-    message.append({"role": "user", "content": f"""ข้อมูล:\n{vector_data}"""})
+    message.append({"role": "user", "content": f"""เอกสารข้อมูล:\n{vector_data}"""})
     message.append({"role": "user", "content": f"""คำถาม: {query}"""})
 
     return await model_generate_answer(message)
@@ -70,18 +87,18 @@ def search_retrieval(query: str, session) -> str:
     get_file_id = 0
     vector_data = ""
     for data in get_vector_data:
-        chunk_vector = np.array(data.vector)
-        cosine_score = float(np.dot(embed_query, chunk_vector))
-        score_info = f"\n\n[Cosine Similarity Score: {cosine_score:.4f}]"
+        # chunk_vector = np.array(data.vector)
+        # cosine_score = float(np.dot(embed_query, chunk_vector))
+        # score_info = f"\n\n[Cosine Similarity Score: {cosine_score:.4f}]"
 
         if get_file_id != data.rag_file_id:
             vector_data += f"\n\n\nข้อมูลจากเอกสาร : {data.ragfiles.name}"
             vector_data += f"\nรายละเอียดเอกสาร : {data.ragfiles.detail if data.ragfiles.detail else '-'}"
-            # vector_data += f"\n{data.content}"
-            vector_data += f"{score_info}\n{data.content}"
+            vector_data += f"\n{data.content}"
+            # vector_data += f"{score_info}\n{data.content}"
         else:
-            # vector_data += f"\n\n{data.content}"
-            vector_data += f"{score_info}\n\n{data.content}"
+            vector_data += f"\n\n{data.content}"
+            # vector_data += f"{score_info}\n\n{data.content}"
         get_file_id = data.rag_file_id
     return vector_data, verify_date
 
@@ -89,9 +106,9 @@ def search_retrieval(query: str, session) -> str:
 async def model_generate_answer(message: str) -> str:
     try:
         response = requests.post(
-            "http://ollama:11434/api/chat",
+            OLLAMA_URL,
             json={
-                "model": "llama3.2:3b",
+                "model": RESPONSE_MODEL,
                 "messages": message,
                 "stream": False,
                 "options": {
@@ -112,7 +129,7 @@ def query_search_day(query: str) -> str | None:
     thai_day = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"]
     thai_month = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     thai_year = now.year + 543
-    today_keywords = ["วัน", "วันนี้", "ปัจจุบัน", "ตอนนี้", "เดี๋ยวนี้", "ขณะนี้", "เดือนนี้", "ปีนี้"]
+    today_keywords = ["วัน", "วันนี้", "ปัจจุบัน", "ตอนนี้", "เดี๋ยวนี้", "ขณะนี้", "เดือนนี้", "ปีนี้", "กี่โมง", "เวลา", "โมง", "นาที"]
     yesterday_keywords = ["เมื่อวาน", "วานนี้", "เมื่อวาน", "วันก่อน", "เมื่อวา"]
     tomorrow_keywords = ["พรุ่งนี้", "วันถัดไป", "วันต่อไป", "วันหน้า", "วันพรุ"]
 
@@ -130,20 +147,20 @@ def query_search_day(query: str) -> str | None:
 
 async def modelAi_topic_chat(query: str) -> str :
     message = [
-        {"role": "system", "content": "คุณคือผู้ช่วยในการตั้งชื่อหัวข้อแชทจากคำถาม คุณจะต้องตอบคำถามด้วยชื่อหัวข้อที่สั้นและกระชับ"},
+        {"role": "system", "content": "คุณคือผู้ช่วยในการตั้งชื่อหัวข้อบทสนทนาจากคำถามที่ได้รับ คุณจะต้องตอบคำถามเป็นชื่อหัวข้อที่สั้นและกระชับ"},
         {"role": "user", "content": f"""คำถามเพื่อใช้ตั้งหัวข้อ: {query}"""}
     ]
     try:
         response = requests.post(
-            "http://ollama:11434/api/chat",
+            OLLAMA_URL,
             json={
-                "model": "llama3.2:3b",
+                "model": RESPONSE_MODEL,
                 "messages": message,
                 "stream": False,
                 "options": {
                     "temperature": 0.1,
                     "top_p": 1,
-                    "max_tokens": 30,
+                    "max_tokens": 10,
                 }
             }
         )

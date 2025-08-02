@@ -425,7 +425,7 @@ def dashboard_profile(data: DashboardID, session: SessionDep, user = Depends(get
         )
 
 
-@app.post("/dashboard/profile-chat", tags=["Dashboard"])
+@app.post("/dashboard/profile_chat", tags=["Dashboard"])
 def dashboard_profile_chat(data: DashboardID, session: SessionDep, user = Depends(get_user)):
     try :
         verify_user = session.exec(
@@ -544,6 +544,7 @@ async def dashboard_upload_file(
         allowed_type = ['csv', 'pdf', 'txt', 'docx']
 
         for file in files:
+            data_chunk = []
             data_file = await file.read()
             type_file = file.filename.split('.')
             name = type_file[0] if len(files) > 1 else name
@@ -591,7 +592,6 @@ async def dashboard_upload_file(
                     data_chunk = get_data_chunk(data_text, int(chunk), type_file[1])
             else:
                 data_dict = extract_data_from_csv(data_file)
-
                 if not data_dict or len(data_dict) == 0:
                     return JSONResponse(
                         status_code=422,
@@ -601,8 +601,8 @@ async def dashboard_upload_file(
                             "data": {}
                         }
                     )
+                
                 lists = convert_record_to_text(data_dict)
-                data_chunk = []
                 for list_data in lists:
                     chunk_text = get_data_chunk(list_data, int(chunk), type_file[1])
                     data_chunk.extend(chunk_text)
@@ -638,12 +638,12 @@ async def dashboard_upload_file(
             session.commit()
             session.refresh(upload_file)
 
-            for idx, (chunk_text, vector) in enumerate(zip(data_chunk, data_vector)):
+            for index, (chunk_text, vector) in enumerate(zip(data_chunk, data_vector)):
                 upload_chunk = RagChunks(
                     rag_file_id=upload_file.rag_file_id,
                     content=chunk_text,
-                    vector=vector.tolist(),
-                    chunk_index=idx
+                    vector=vector,
+                    chunk_index=index
                 )
                 session.add(upload_chunk)
             session.commit()
