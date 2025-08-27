@@ -3,4 +3,4 @@
 files_storage/
 __pycache__/
 models/
-ollama_local/
+ollama-local/
