@@ -278,11 +278,13 @@ def forgot_password(user: ForgotPasswordSchema, session: SessionDep):
         if existing_token:
             now = datetime.now(existing_token.expires_at.tzinfo)
             if existing_token.expires_at > now:
+                time_left = existing_token.expires_at - now
+                time_formatted = f"{time_left.seconds // 60} นาที"
                 return JSONResponse(
                     status_code=409,
                     content={
                         "status": 0,
-                        "message": "การยืนยันตัวตนถูกส่งแล้ว",
+                        "message": f"คำขอจะถูกส่งได้อีกภายใน {time_formatted}",
                         "data": {}
                     }
                 )
@@ -710,7 +712,8 @@ def oauth_login(data: dict, session: SessionDep):
     try:
         account = data.get("account", {})
         user = data.get("user", {})
-
+        names = user.get("name", None)
+        images = user.get("image", None)
         provider = account.get("provider", None)
         provider_account_id = str(account.get("providerAccountId", None))
         access_token = account.get("access_token", None)
@@ -741,6 +744,8 @@ def oauth_login(data: dict, session: SessionDep):
             )
         ).first()
 
+        print(f"Existing Account: {existing_account} \n\n\n")
+
         if existing_account:
             existing_account.access_token = access_token
             existing_account.refresh_token = refresh_token
@@ -750,7 +755,17 @@ def oauth_login(data: dict, session: SessionDep):
             session.add(existing_account)
             session.commit()
             
-            user_old = session.exec(select(WebUsers).where(WebUsers.web_user_id == existing_account.web_user_id)).first()
+            user_old = session.exec(
+                select(WebUsers)
+                .where(WebUsers.web_user_id == existing_account.web_user_id)
+            ).first()
+            user_old.image = images if images else user_old.image
+            user_old.username = names if names else user_old.username
+            user_old.update_at = datetime.now()
+            session.add(user_old)
+            session.commit()
+            session.refresh(user_old)
+            
             if user_old:
                 return JSONResponse(
                     status_code=200,
@@ -773,8 +788,8 @@ def oauth_login(data: dict, session: SessionDep):
                 )
 
         email = user.get("email")
-        name = user.get("name")
-        image = user.get("image")
+        name = names
+        image = images
 
         if email and provider in ["credentials", "google"]:
             conflict = session.exec(
@@ -799,7 +814,11 @@ def oauth_login(data: dict, session: SessionDep):
                     }
                 )
         
-        user_obj = session.exec(select(WebUsers).where(WebUsers.email == email)).first()
+        user_obj = None
+        if email not in [None, ""]:
+            user_obj = session.exec(select(WebUsers).where(WebUsers.email == email)).first()
+
+        print(f"User Object: {user_obj} \n\n\n")
         if not user_obj:
             user_obj = WebUsers(
                 email=email,
@@ -808,6 +827,8 @@ def oauth_login(data: dict, session: SessionDep):
                 role_id=1,
                 email_verified=True
             )
+
+            print(f"New User Object: {user_obj} \n\n\n")
             session.add(user_obj)
             session.commit()
             session.refresh(user_obj)
@@ -826,6 +847,7 @@ def oauth_login(data: dict, session: SessionDep):
             session_state=session_state
         )
 
+        print(f"New Account: {new_account} \n\n\n")
         session.add(new_account)
         session.commit()
 

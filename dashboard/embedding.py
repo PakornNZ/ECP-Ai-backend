@@ -14,13 +14,21 @@ from collections import defaultdict
 from typhoon_ocr import ocr_document
 import tempfile
 from transformers import AutoTokenizer
+from sentence_transformers import SentenceTransformer
 import re
 from dotenv import load_dotenv
 load_dotenv()
 
 tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-m3")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
-OLLAMA_URL = os.getenv("OLLAMA_URL")
+embedding_model = SentenceTransformer(EMBEDDING_MODEL)
+
+# OLLAMA_URL = os.getenv("OLLAMA_URL")
+# EMBEDDING_URL = f"{OLLAMA_URL}/embeddings"
+
+
+
+# ! แยกข้อความเป็นบล็อก
 
 def split_blocks(text: str) -> list[str]:
     pattern = r'\*\*(.*?)\*\*'
@@ -37,6 +45,10 @@ def split_blocks(text: str) -> list[str]:
         blocks = [text.strip()]
     blocks = [b for b in blocks if b.strip()]
     return blocks
+
+
+
+#  ! แยกข้อความเป็นชิ้นส่วนย่อย Chunking
 
 def get_data_chunk(data_text: str, max_tokens: int, file_type: str, overlap: int = 50) -> list[str]:
     cleaned_text = clean_text(data_text)
@@ -56,18 +68,25 @@ def get_data_chunk(data_text: str, max_tokens: int, file_type: str, overlap: int
     return chunks
 
 
+
+# ! ทำความสะอาดข้อความ
+
 def clean_text(text: str) -> str:
     text = re.sub(r'\n{2,}', '\n', text)
     text = re.sub(r'[ ]{2,}', ' ', text)
     text = re.sub(r'\.\.{2,}', '', text)
     text = re.sub(r'\t{2,}', '\t', text)
     text = re.sub(r'-{2,}', ' ', text)
-    text = re.sub(r'(\|\s*)+', '', text)
+    # text = re.sub(r'(\|\s*)+', '', text)
     text = re.sub(r'<td>\s*</td>', '-', text)
     text = re.sub(r'[\u200b\u200c\u200d]', '', text)
     text = re.sub(r'<td>\s*(.*?)\s*</td>', r'| \1 ', text)
-    # text = re.sub(r'(?:\| [^\n]+)+', lambda m: m.group(0) + '|', text)
+    text = re.sub(r'(?:\| [^\n]+)+', lambda m: m.group(0) + '', text)
     return text.strip()
+
+
+
+#  ! ทำความสะอาดข้อความ Chunk
 
 def clean_chunks(text: str) -> str:
     text = re.sub(r'\*(.*?)\*', r'\1', text)
@@ -76,24 +95,29 @@ def clean_chunks(text: str) -> str:
     text = text.replace('"', '')
     return text
 
+
+
+# ! สร้างเวกเตอร์จากข้อความ Chunk (Embedding)
+
 def model_embed(chunks: list[str]) -> list[list[float]]:
     cleaned_chunks = [clean_chunks(chunk) for chunk in chunks]
-    embeddings = []
+    embeddings = embedding_model.encode(cleaned_chunks, normalize_embeddings=True)
+    return embeddings.tolist()
+        # payload = {
+        #     "model": EMBEDDING_MODEL,
+        #     "prompt": chunk
+        # }
+        # response = requests.post(EMBEDDING_URL, json=payload)
+        # response.raise_for_status()
+        # embedding = np.array(response.json()["embedding"], dtype=np.float32)
+        # norm = np.linalg.norm(embedding)
+        # if norm > 0:
+        #     embedding = embedding / norm
+        # embeddings.append(embedding.tolist())
 
-    for chunk in cleaned_chunks:
-        payload = {
-            "model": EMBEDDING_MODEL,
-            "prompt": chunk
-        }
-        response = requests.post(OLLAMA_URL, json=payload)
-        response.raise_for_status()
-        embedding = np.array(response.json()["embedding"], dtype=np.float32)
-        norm = np.linalg.norm(embedding)
-        if norm > 0:
-            embedding = embedding / norm
-        embeddings.append(embedding.tolist())
 
-    return embeddings
+
+# ! ดึงข้อมูลจากไฟลเป็นข้อความ
 
 async def extract_data_from_file(file_bytes: bytes, file_type: str, start: str, stop: str) -> str:
     data_text = []
@@ -155,6 +179,10 @@ async def extract_data_from_file(file_bytes: bytes, file_type: str, start: str, 
         return ""
     return data_text
 
+
+
+# ! ดึงข้อมูลจากไฟล์ pdf แยกเป็นหน้า
+
 async def extract_data_from_pdf(file_bytes: bytes, start: str, stop: str) -> list[str]:
     chunks = []
     with BytesIO(file_bytes) as pdf_stream:
@@ -184,10 +212,13 @@ async def extract_data_from_pdf(file_bytes: bytes, start: str, stop: str) -> lis
                 )
                 chunk_text = ocr_text
             if chunk_text:
-                chunks.append(chunk_text)
+                chunks.append(clean_text(chunk_text))
         os.unlink(tmp_file_path)
     return chunks
 
+
+
+# ! ค้นหาข้อความที่ผิดพลาดจากการดึงข้อมูลจากไฟล์ pdf
 
 def is_bad_thai_text(text: str) -> bool:
     if not text or len(text.strip()) < 30:
@@ -214,6 +245,9 @@ def is_bad_thai_text(text: str) -> bool:
     return False
 
 
+
+# ! ดึงข้อมูลจากไฟล์ csv
+
 def extract_data_from_csv(file_bytes: bytes) -> list[dict]:
     df = pd.read_csv(BytesIO(file_bytes), encoding='utf-8')
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
@@ -231,6 +265,10 @@ def extract_data_from_csv(file_bytes: bytes) -> list[dict]:
     else:
         return records
 
+
+
+# ! ข้อมูลที่ได้จาก csv จัดกลุ่มตามฟิลด์
+
 def group_nested_records(records: list[dict], group_field: str, detail_fields: list[str]) -> list[dict]:
     grouped = defaultdict(list)
 
@@ -246,6 +284,10 @@ def group_nested_records(records: list[dict], group_field: str, detail_fields: l
             "รายการทั้งหมด": details
         })
     return result
+
+
+
+# ! ข้อมูลที่ได้จาก csv จัดกลุ่มตามฟิลด์
 
 def merge_records_by_shared_fields(records, list_field) -> list[dict]:
     grouped = defaultdict(list)
@@ -264,6 +306,10 @@ def merge_records_by_shared_fields(records, list_field) -> list[dict]:
             base[field] = list({v[field] for v in value_dicts if field in v})
         result.append(base)
     return result
+
+
+
+# ! แปลงข้อมูลให้อยู่ในรุปแบบข้อความ
 
 def convert_record_to_text(record: list[dict]) -> list[str]:
     first_key = list(record[0].keys())[0] if record else None

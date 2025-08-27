@@ -1,6 +1,8 @@
 from core.fastapi import *
 from pathlib import Path
 from embedding import *
+from core.vec_database import *
+import uuid
 
 SAVE_FILE = Path() / "files_storage"
 @app.get("/dashboard/user", tags=["Dashboard"])
@@ -638,15 +640,37 @@ async def dashboard_upload_file(
             session.commit()
             session.refresh(upload_file)
 
-            for index, (chunk_text, vector) in enumerate(zip(data_chunk, data_vector)):
-                upload_chunk = RagChunks(
-                    rag_file_id=upload_file.rag_file_id,
-                    content=chunk_text,
-                    vector=vector,
-                    chunk_index=index
-                )
-                session.add(upload_chunk)
-            session.commit()
+            # for index, (chunk_text, vector) in enumerate(zip(data_chunk, data_vector)):
+            #     upload_chunk = RagChunks(
+            #         rag_file_id=upload_file.rag_file_id,
+            #         content=chunk_text,
+            #         vector=vector,
+            #         chunk_index=index
+            #     )
+            #     session.add(upload_chunk)
+            # session.commit()
+
+            # * บันทึกเวกเตอร์ลงใน Qdrant
+            points = []
+            for index, (chunk_text, vector) in enumerate(zip(data_chunk, data_vector), 1):
+                points.append({
+                    "id": str(uuid.uuid4()),
+                    "vector": vector,
+                    "payload": {
+                        "content": chunk_text,
+                        "rag_file_id": upload_file.rag_file_id,
+                        "chunk_index": index,
+                        "name": upload_file.name,
+                        "detail": upload_file.detail
+                    }
+                })
+            
+            client.upsert(
+                collection_name=COLLECTION_NAME,
+                points=points,
+                wait=True
+            )
+
 
             return_file = {
                 "id": upload_file.rag_file_id,
@@ -1128,6 +1152,19 @@ async def dashboard_delete_file(request: Request, session: SessionDep, user = De
         )
 
     try:
+        # * ลบเอกสารจาก Qdrant
+        client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=Filter(
+                must=[
+                    FieldCondition(
+                        key="rag_file_id",
+                        match=MatchValue(value=delete_file.rag_file_id)
+                    )
+                ]
+            )
+        )
+
         file_path = delete_file.file_path
         if os.path.exists(file_path):
             os.remove(file_path)

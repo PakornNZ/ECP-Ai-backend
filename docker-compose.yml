@@ -12,8 +12,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - /home/ecpai/storage/section-api/user/user:/app/user/user
-      - /home/ecpai/storage/section-api/user/core:/app/user/core
+      - ./user:/app/user
+      - ./core:/app/core
+    networks:
+      - project-net
 
   api-data:
     build:
@@ -26,8 +28,10 @@ services:
     ports:
       - "8010:8010"
     volumes:
-      - /home/ecpai/storage/section-api/data/data:/app/data/data
-      - /home/ecpai/storage/section-api/data/core:/app/data/core
+      - ./data:/app/data
+      - ./core:/app/core
+    networks:
+      - project-net
   
   api-chat:
     build:
@@ -40,9 +44,11 @@ services:
     ports:
       - "8020:8020"
     volumes:
-      - /home/ecpai/storage/section-api/chat/chat:/app/chat/chat
-      - /home/ecpai/storage/section-api/chat/core:/app/chat/core
-      - /home/ecpai/storage/section-api/chat/response:/app/chat/response
+      - ./chat:/app/chat
+      - ./core:/app/core
+      - ./response:/app/response
+    networks:
+      - project-net
 
   api-dashboard:
     build:
@@ -55,5 +61,12 @@ services:
     ports:
       - "8030:8030"
     volumes:
-      - /home/ecpai/storage/section-api/dashboard/dashboard:/app/dashboard/dashboard
-      - /home/ecpai/storage/section-api/dashboard/core:/app/dashboard/core
+      - ./dashboard:/app/dashboard
+      - ./core:/app/core
+    networks:
+      - project-net
+
+networks:
+  project-net:
+    external: true
+  

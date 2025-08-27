@@ -1,5 +1,10 @@
 from core.fastapi import *
 from response.main import *
+from core.vec_database import *
+
+
+
+# ! สร้างห้องการสนทนาเพื่อตอบกลับไอดี
 
 @app.post("/chat/new_chat", tags=["CHAT"])
 def user_new_chat(session: SessionDep, user = Depends(get_user)):
@@ -7,6 +12,7 @@ def user_new_chat(session: SessionDep, user = Depends(get_user)):
     try :
         new_chat = WebChats(
             web_user_id=user["id"],
+            chat_name="[ห้องสนทนาใหม่]",
             create_at=datetime.now(),
             update_at=datetime.now()
         )
@@ -35,6 +41,9 @@ def user_new_chat(session: SessionDep, user = Depends(get_user)):
             }
         )
 
+
+
+# ! สร้างชื่อหัวข้อการสนทนาใหม่
 
 @app.put("/chat/new_topic", tags=["CHAT"])
 async def user_new_topic(data: ResponeChatSchema, session: SessionDep, user = Depends(get_user)):
@@ -95,6 +104,9 @@ async def user_new_topic(data: ResponeChatSchema, session: SessionDep, user = De
         )
 
 
+
+# ! สร้างคำตอบจากโมเดล AI สำหรับผู้ใช้งาน
+
 @app.post("/chat/respone", tags=["CHAT"])
 async def respone_answer (data: ResponeChatSchema, session: SessionDep, user = Depends(get_user)):
 
@@ -115,23 +127,18 @@ async def respone_answer (data: ResponeChatSchema, session: SessionDep, user = D
             )
             
         recent_messages=session.exec(
-            select(WebMessages.query_message, WebMessages.response_message)
+            select(WebMessages)
             .where(WebMessages.web_chat_id==update_chat_at.web_chat_id)
             .order_by(desc(WebMessages.create_at))
             .limit(5)
         ).all()
         
         recent_message_text = ""
-        recent_message_embed = ""
         if recent_messages:
-            for index, msg in enumerate(recent_messages, 1):
-                query_index = f"คำถามที่ {index}" if index > 1 else "คำถามล่าสุด"
-                answer_index = f"คำตอบที่ {index}" if index > 1 else "คำตอบล่าสุด"
-                recent_message_text += f"{query_index}: {msg.query_message}\n"
-                recent_message_text += f"{answer_index}: {msg.response_message}\n\n"
-            recent_message_embed = f"{data.query}\n{recent_messages[0].response_message} {recent_messages[0].query_message}"
-
-        response = await modelAi_response_user(data.query, recent_message_text, recent_message_embed, session) 
+            for index, msg in enumerate(recent_messages[::-1], 1):
+                recent_message_text += f"Q{index}: {msg.query_message}\n"
+                recent_message_text += f"A{index}: {msg.response_message}\n\n"
+        response = await modelAi_response_user_llamaindex(data.query, recent_message_text) 
         if response == "":
             return JSONResponse(
                 status_code=500,
@@ -141,16 +148,16 @@ async def respone_answer (data: ResponeChatSchema, session: SessionDep, user = D
                     "data": {}
                 }
             )
-        newMessage = WebMessages(
+        new_message = WebMessages(
             web_chat_id=data.chat_id,
             query_message=data.query,
             response_message=response,
             rating=0
         )
 
-        session.add(newMessage)
+        session.add(new_message)
         session.commit()
-        session.refresh(newMessage)
+        session.refresh(new_message)
 
         update_chat_at.update_at = datetime.now()
         session.add(update_chat_at)
@@ -162,8 +169,8 @@ async def respone_answer (data: ResponeChatSchema, session: SessionDep, user = D
                 "status": 1,
                 "message": "",
                 "data": {
-                    "id": newMessage.web_message_id,
-                    "answer": newMessage.response_message
+                    "id": new_message.web_message_id,
+                    "answer": new_message.response_message
                 }
             }
         )
@@ -173,6 +180,9 @@ async def respone_answer (data: ResponeChatSchema, session: SessionDep, user = D
             content=str(error)
         )
 
+
+
+# ! สร้างคำตอบจากโมเดล AI สำหรับผู้ใช้งาน เมื่อแก้ไขคำถาม
 
 @app.put("/chat/edit_respone", tags=["CHAT"])
 async def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep, user = Depends(get_user)):
@@ -212,22 +222,17 @@ async def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep,
             select(WebMessages.query_message, WebMessages.response_message)
             .where(WebMessages.web_chat_id==update_chat_at.web_chat_id)
             .order_by(desc(WebMessages.create_at))
-            .limit(5)
+            .limit(6)
         ).all()
-        
+
         recent_message_text = ""
-        recent_message_embed = ""
         if recent_messages:
             recent_messages.pop(0)
             if len(recent_messages) > 0:
-                for index, msg in enumerate(recent_messages, 1):
-                    query_index = f"คำถามที่ {index}" if index > 1 else "คำถามล่าสุด"
-                    answer_index = f"คำตอบที่ {index}" if index > 1 else "คำตอบล่าสุด"
-                    recent_message_text += f"{query_index}: {msg.query_message}\n"
-                    recent_message_text += f"{answer_index}: {msg.response_message}\n\n"
-                recent_message_embed = f"{data.query}\n{recent_messages[0].response_message} {recent_messages[0].query_message}"
-
-        response = await modelAi_response_user(data.query, recent_message_text, recent_message_embed, session) 
+                for index, msg in enumerate(recent_messages[::-1], 1):
+                    recent_message_text += f"Q{index}: {msg.query_message}\n"
+                    recent_message_text += f"A{index}: {msg.response_message}\n\n"
+        response = await modelAi_response_user_llamaindex(data.query, recent_message_text) 
         
         if response == "":
             return JSONResponse(
@@ -274,11 +279,14 @@ async def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep,
         )
 
 
+
+# ! สร้างคำตอบจากโมเดล AI สำหรับผู้มาเยือน
+
 @app.post("/chat/guest_response", tags=["CHAT"])
-async def guest_response_answer (data: GuestResponeChatSchema, session: SessionDep):
+async def guest_response_answer (data: GuestResponeChatSchema):
         
     try :
-        response = await modelAi_response_guest(data.message, session)
+        response = await modelAi_response_guest_llamaindex(data.message)
         if response == "":
             return JSONResponse(
                 status_code=500,
