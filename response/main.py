@@ -108,13 +108,13 @@ def retriever_context_with_llamaindex(
 
 # ! สร้างคำถามจากโมเดล AI สำหรับผู้ใช้งาน
 
-async def modelAi_response_guest_llamaindex(query: str) -> str:
+def modelAi_response_guest_llamaindex(query: str) -> str:
+    try:
+        vector_data, verify_date = retriever_context_with_llamaindex(
+            user_query=query
+        )
 
-    vector_data, verify_date = retriever_context_with_llamaindex(
-        user_query=query
-    )
-
-    prompt = f"""
+        prompt = f"""
 [ROLE]: You are an intelligent assistant that answers questions **only in Thai**.  
 You must use only the information from [REFERENCE DATA].  
 If no relevant information is found, respond with: "ไม่มีข้อมูลเพียงพอสำหรับคำถาม".
@@ -130,21 +130,24 @@ If no relevant information is found, respond with: "ไม่มีข้อม�
 {query}
 """
 
-    answer = await model_generate_answer(prompt)
-    return answer
+        answer = model_generate_answer(prompt)
+        return answer
+    except Exception as e:
+        return ""
 
 
 
-async def modelAi_response_user_llamaindex(
+def modelAi_response_user_llamaindex(
     query: str,
     recent_message_text: str | None = None
 ) -> str:
     
-    vector_data, verify_date = retriever_context_with_llamaindex(
-        user_query=query
-    )
+    try :
+        vector_data, verify_date = retriever_context_with_llamaindex(
+            user_query=query
+        )
 
-    prompt = f"""
+        prompt = f"""
 [ROLE]: You are an intelligent assistant that answers questions **only in Thai**.  
 You must use only the information from [REFERENCE DATA].  
 If no relevant information is found, respond with: "ไม่มีข้อมูลเพียงพอสำหรับคำถาม".
@@ -166,8 +169,10 @@ If no relevant information is found, respond with: "ไม่มีข้อม�
 {query}
 """
 
-    answer = await model_generate_answer(prompt)
-    return answer if answer else ""
+        answer = model_generate_answer(prompt)
+        return answer if answer else ""
+    except Exception as e:
+        return ""
 
 
 # ! ค้นหาข้อมูลจากฐานข้อมูล Vector
@@ -258,7 +263,7 @@ def query_search_day(query: str) -> str | None:
 
 # ! สร้างคำตอบจากโมเดล AI
 
-async def model_generate_answer(prompt: str) -> str:
+def model_generate_answer(prompt: str) -> str:
     print("-------------------------------------------------------------------")
     print(f"Prompt: \n\n{prompt}")
     try:
@@ -277,7 +282,9 @@ async def model_generate_answer(prompt: str) -> str:
                 }
             }
         )
-        result = response.json()["message"]["content"]
+        response.raise_for_status()
+        result = response.json().get("message", {}).get("content", "").strip()
+
         return result
     except Exception as e:
         print(f"Error in model_generate_answer: {e}")
@@ -292,19 +299,17 @@ async def modelAi_topic_chat(query: str) -> str :
         {
             "role": "system",
             "content": (
-                "You are an assistant that generates a short and concise conversation topic title "
-                "based on the given question. "
-                "You must always answer in **Thai language only**. "
-                "Do not provide long sentences or unrelated content. "
-                "The output must be short and meaningful.\n\n"
-                "Examples:\n"
-                "If the question is 'สวัสดี' respond 'การทักทาย'\n"
-                "If the question is 'อธิบายการทำงานของ AI' respond 'AI ทำงานอย่างไร'\n"
+                "คุณคือผู้ช่วยในการตั้งชื่อหัวข้อบทสนทนาจากคำถามที่ได้รับ "
+                "คุณต้องตอบเป็นชื่อหัวข้อที่สั้น กระชับ และสื่อความหมาย "
+                "ห้ามตอบเป็นประโยคยาว และห้ามสร้างคำตอบที่ไม่เกี่ยวข้อง "
+                "ตัวอย่าง: "
+                "ถ้าคำถามคือ 'สวัสดี' คุณตอบว่า 'การทักทาย' "
+                "ถ้าคำถามคือ 'อธิบายการทำงานของ AI' คุณตอบว่า 'AI ทำงานอย่างไร'"
             )
         },
         {
             "role": "user",
-            "content": f"Question for topic title: {query}"
+            "content": f"คำถามเพื่อใช้ตั้งหัวข้อ: {query}"
         }
     ]
 
@@ -322,7 +327,8 @@ async def modelAi_topic_chat(query: str) -> str :
                 }
             }
         )
-        result = response.json()["message"]["content"]
+        response.raise_for_status()
+        result = response.json().get("message", {}).get("content", "").strip()
         result = re.sub(r'[^\w\s\u0E00-\u0E7F]', '', result)
         return result
     except Exception as e:

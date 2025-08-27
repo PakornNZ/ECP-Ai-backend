@@ -5,6 +5,7 @@ from core.vec_database import *
 import uuid
 
 SAVE_FILE = Path() / "files_storage"
+SAVE_TEXT = Path() / "files_text"
 @app.get("/dashboard/user", tags=["Dashboard"])
 def dashboard_user(session: SessionDep, user = Depends(get_user)):
 
@@ -624,6 +625,10 @@ async def dashboard_upload_file(
             save_file = SAVE_FILE / f"{name}.{type_file[1]}"
             with open(save_file, "wb") as f:
                 f.write(data_file)
+
+            save_text = SAVE_TEXT / f"{name}.txt"
+            with open(save_text, "w", encoding="utf-8") as f:
+                f.write("\n".join(data_chunk))
 
             upload_file = RagFiles(
                 web_user_id=user["id"],

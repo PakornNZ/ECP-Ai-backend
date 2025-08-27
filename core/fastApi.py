@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, status, Request, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, status, Request, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse, FileResponse
@@ -21,8 +21,8 @@ app = FastAPI(
                 title="ChatBot ECP Ai",
                 description='',
                 root_path="/ecp-ai",
-                # docs_url=None, 
-                # redoc_url=None
+                docs_url=None, 
+                redoc_url=None
             )
 
 app.add_middleware(

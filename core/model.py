@@ -119,3 +119,22 @@ class WebMessages(SQLModel, table = True):
     create_at: Optional[datetime] = Field(default_factory=datetime.now)
     update_at: Optional[datetime] = Field(default_factory=datetime.now)
     webchat: Optional[WebChats] = Relationship(back_populates="webmessage", sa_relationship_kwargs={"passive_deletes": True})
+
+
+class LineUsers(SQLModel, table=True):
+    __tablename__="line_users"
+    line_user_id: int | None = Field(default=None, primary_key=True)
+    user_id: Optional[str] = None
+    create_at: datetime = Field(default_factory=datetime.now)
+    linemessage: List["LineMessages"] = Relationship(back_populates="lineuser", sa_relationship_kwargs={"passive_deletes": True})
+
+
+class LineMessages(SQLModel, table = True):
+    __tablename__ = "line_messages"
+    line_message_id: int | None = Field(default=None, primary_key=True)
+    line_user_id: Optional[int] = Field(default=None, foreign_key="line_users.line_user_id", ondelete="CASCADE")
+    query_message: Optional[str] = None
+    response_message: Optional[str] = None
+    create_at: Optional[datetime] = Field(default_factory=datetime.now)
+    update_at: Optional[datetime] = Field(default_factory=datetime.now)
+    lineuser: Optional[LineUsers] = Relationship(back_populates="linemessage", sa_relationship_kwargs={"passive_deletes": True})

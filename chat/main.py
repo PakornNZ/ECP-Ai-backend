@@ -7,7 +7,7 @@ from core.vec_database import *
 # ! สร้างห้องการสนทนาเพื่อตอบกลับไอดี
 
 @app.post("/chat/new_chat", tags=["CHAT"])
-def user_new_chat(session: SessionDep, user = Depends(get_user)):
+async def user_new_chat(session: SessionDep, user = Depends(get_user)):
 
     try :
         new_chat = WebChats(
@@ -138,7 +138,7 @@ async def respone_answer (data: ResponeChatSchema, session: SessionDep, user = D
             for index, msg in enumerate(recent_messages[::-1], 1):
                 recent_message_text += f"Q{index}: {msg.query_message}\n"
                 recent_message_text += f"A{index}: {msg.response_message}\n\n"
-        response = await modelAi_response_user_llamaindex(data.query, recent_message_text) 
+        response = modelAi_response_user_llamaindex(data.query, recent_message_text) 
         if response == "":
             return JSONResponse(
                 status_code=500,
@@ -232,7 +232,7 @@ async def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep,
                 for index, msg in enumerate(recent_messages[::-1], 1):
                     recent_message_text += f"Q{index}: {msg.query_message}\n"
                     recent_message_text += f"A{index}: {msg.response_message}\n\n"
-        response = await modelAi_response_user_llamaindex(data.query, recent_message_text) 
+        response = modelAi_response_user_llamaindex(data.query, recent_message_text) 
         
         if response == "":
             return JSONResponse(
@@ -251,7 +251,6 @@ async def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep,
 
         session.add(update_message)
         session.commit()
-        print(f"Update Message: {update_message}")
         update_chat_at.update_at = datetime.now()
 
         session.add(update_chat_at)
@@ -286,7 +285,7 @@ async def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep,
 async def guest_response_answer (data: GuestResponeChatSchema):
         
     try :
-        response = await modelAi_response_guest_llamaindex(data.message)
+        response = modelAi_response_guest_llamaindex(data.message)
         if response == "":
             return JSONResponse(
                 status_code=500,
@@ -315,4 +314,126 @@ async def guest_response_answer (data: GuestResponeChatSchema):
                 "message": str(error),
                 "data": {}
             }
+        )
+    
+
+# ! สร้างคำตอบจากโมเดล AI จากระบบไลน์
+
+from linebot.v3 import WebhookHandler
+from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage, FlexMessage, FlexContainer
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent
+
+from chat.building import get_building_flex_message
+
+configuration=Configuration(access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
+handler=WebhookHandler(channel_secret = os.getenv("LINE_CHANNEL_SECRET"))
+
+
+@app.post("/chat/webhook", tags=["CHAT"])
+async def webhook_endpoint(request: Request, x_line_signature: str=Header(None)):
+    body_str=(await request.body()).decode("utf-8")
+    try:
+        handler.handle(body_str, x_line_signature)
+    except InvalidSignatureError:
+        print("InvalidSignatureError: Check your Channel Secret.")
+        raise HTTPException(status_code=400, detail="Invalid signature.")
+    except Exception as e:
+        print(f"Unhandled error in webhook_endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error occurred while processing webhook.")
+    return "OK"
+
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_message(event: MessageEvent):
+    user_id = event.source.user_id
+    user_message = event.message.text
+    flex_message_content = get_building_flex_message()
+
+    if user_message == "แผนที่อาคาร":
+        try:
+            flex_container = FlexContainer.from_dict(flex_message_content)
+            with ApiClient(configuration) as api_client:
+                MessagingApi(api_client).reply_message(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[FlexMessage(alt_text="แผนที่อาคาร", contents=flex_container)]
+                    )
+                )
+            print("Flex Message sent successfully.")
+        except Exception as e:
+            print(f"Error sending Flex Message: {e}")
+            try:
+                with ApiClient(configuration) as fallback_api_client:
+                    MessagingApi(fallback_api_client).reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text="ไม่สามารถแสดงเมนูได้ในขณะนี้")]
+                        )
+                    )
+            except Exception as fallback_e:
+                print(f"Fallback message failed: {fallback_e}")
+        return
+
+
+    with Session(engine) as session:
+        response = ""
+        try:
+            get_user_by_id = session.exec(
+                select(LineUsers).where(LineUsers.user_id == user_id)
+            ).first()
+
+            if not get_user_by_id:
+                new_user = LineUsers(user_id=user_id)
+                session.add(new_user)
+                session.commit()
+
+            recent_messages = session.exec(
+                select(LineMessages)
+                .where(LineMessages.line_user_id == get_user_by_id.line_user_id)
+                .order_by(desc(LineMessages.create_at))
+                .limit(5)
+            ).all()
+
+            recent_message_text = ""
+            if recent_messages:
+                for index, msg in enumerate(recent_messages[::-1], 1):
+                    recent_message_text += f"Q{index}: {msg.query_message}\n"
+                    recent_message_text += f"A{index}: {msg.response_message}\n\n"
+
+            response = modelAi_response_user_llamaindex(user_message, recent_message_text)
+            
+            if response == "":
+                response = "ระบบตอบคำถามไม่พร้อมใช้งานในขณะนี้"
+            else:
+                response = re.sub(r'[^\w\s\u0E00-\u0E7F"?/.,@!&()-=]', '', response)
+                new_message = LineMessages(
+                    line_user_id=get_user_by_id.line_user_id,
+                    query_message=user_message,
+                    response_message=response
+                )
+                session.add(new_message)
+                session.commit()
+
+        except Exception as e:
+            print(f"Error processing message from user '{user_id}': {e}")
+            response = "ระบบไม่พร้อมใช้งานในขณะนี้"
+
+    with ApiClient(configuration) as api_client:
+        MessagingApi(api_client).reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=response)]
+            )
+        )
+
+@handler.add(MessageEvent, message=ImageMessageContent)
+async def handle_image(event: MessageEvent):
+    response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
+
+    with ApiClient(configuration) as api_client:
+        MessagingApi(api_client).reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=response_message)]
+            )
         )
