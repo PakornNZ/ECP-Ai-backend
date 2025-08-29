@@ -322,7 +322,7 @@ async def guest_response_answer (data: GuestResponeChatSchema):
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage, FlexMessage, FlexContainer
-from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent, VideoMessageContent, AudioMessageContent, LocationMessageContent
 
 from chat.building import get_building_flex_message
 
@@ -405,7 +405,9 @@ def handle_message(event: MessageEvent):
             if response == "":
                 response = "ระบบตอบคำถามไม่พร้อมใช้งานในขณะนี้"
             else:
-                response = re.sub(r'[^\w\s\u0E00-\u0E7F"?/.,@!&()-=]', '', response)
+                response = re.sub(r'<.*?>', '', response)
+                response = re.sub(r'\s+', '', response).strip()
+                response = re.sub(r'[^\w\s\u0E00-\u0E7F:/?&=._,@!()\-+]', '', response)
                 new_message = LineMessages(
                     line_user_id=get_user_by_id.line_user_id,
                     query_message=user_message,
@@ -428,6 +430,44 @@ def handle_message(event: MessageEvent):
 
 @handler.add(MessageEvent, message=ImageMessageContent)
 async def handle_image(event: MessageEvent):
+    response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
+
+    with ApiClient(configuration) as api_client:
+        MessagingApi(api_client).reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=response_message)]
+            )
+        )
+
+@handler.add(MessageEvent, message=VideoMessageContent)
+def handle_image(event: MessageEvent):
+    response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
+
+    with ApiClient(configuration) as api_client:
+        MessagingApi(api_client).reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=response_message)]
+            )
+        )
+
+
+@handler.add(MessageEvent, message=AudioMessageContent)
+def handle_image(event: MessageEvent):
+    response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
+
+    with ApiClient(configuration) as api_client:
+        MessagingApi(api_client).reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=response_message)]
+            )
+        )
+
+
+@handler.add(MessageEvent, message=LocationMessageContent)
+def handle_image(event: MessageEvent):
     response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
 
     with ApiClient(configuration) as api_client:

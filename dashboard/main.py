@@ -609,7 +609,7 @@ async def dashboard_upload_file(
                 for list_data in lists:
                     chunk_text = get_data_chunk(list_data, int(chunk), type_file[1])
                     data_chunk.extend(chunk_text)
-
+            
             data_vector = model_embed(data_chunk)
 
             if data_vector is None or len(data_vector) == 0:
@@ -628,7 +628,8 @@ async def dashboard_upload_file(
 
             save_text = SAVE_TEXT / f"{name}.txt"
             with open(save_text, "w", encoding="utf-8") as f:
-                f.write("\n".join(data_chunk))
+                chunks = [chunk.replace('[EOL]', '\n') for chunk in data_chunk]
+                f.write("\n".join(chunks))
 
             upload_file = RagFiles(
                 web_user_id=user["id"],
@@ -666,7 +667,7 @@ async def dashboard_upload_file(
                         "rag_file_id": upload_file.rag_file_id,
                         "chunk_index": index,
                         "name": upload_file.name,
-                        "detail": upload_file.detail
+                        "detail": upload_file.detail if upload_file.detail else "",
                     }
                 })
             

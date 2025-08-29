@@ -34,11 +34,10 @@ def split_blocks(text: str) -> list[str]:
     pattern = r'\*\*(.*?)\*\*'
     parts = re.split(pattern, text)
     blocks = []
-    
     for i in range(1, len(parts), 2):
         title = parts[i].strip()
         content = parts[i+1].strip() if i + 1 < len(parts) else ""
-        combined = f"{title}\n{content}"
+        combined = f"**{title}**\n{content}".strip()
         blocks.append(combined)
 
     if not blocks:
@@ -54,9 +53,9 @@ def get_data_chunk(data_text: str, max_tokens: int, file_type: str, overlap: int
     cleaned_text = clean_text(data_text)
     blocks = split_blocks(cleaned_text) if file_type == 'txt' else [cleaned_text]
     blocks = [block for block in blocks if block.strip()]
-
     chunks = []
     for block in blocks:
+        block = block.replace('\n', '[EOL]')
         tokens = tokenizer.encode(block, add_special_tokens=False)
         start = 0
         while start < len(tokens):
@@ -72,16 +71,16 @@ def get_data_chunk(data_text: str, max_tokens: int, file_type: str, overlap: int
 # ! ทำความสะอาดข้อความ
 
 def clean_text(text: str) -> str:
-    text = re.sub(r'\n{2,}', '\n', text)
+    text = re.sub(r'\n{4,}', '\n\n', text)
     text = re.sub(r'[ ]{2,}', ' ', text)
     text = re.sub(r'\.\.{2,}', '', text)
     text = re.sub(r'\t{2,}', '\t', text)
     text = re.sub(r'-{2,}', ' ', text)
-    # text = re.sub(r'(\|\s*)+', '', text)
+    text = re.sub(r'(\|\s*)+', '', text)
     text = re.sub(r'<td>\s*</td>', '-', text)
     text = re.sub(r'[\u200b\u200c\u200d]', '', text)
-    text = re.sub(r'<td>\s*(.*?)\s*</td>', r'| \1 ', text)
-    text = re.sub(r'(?:\| [^\n]+)+', lambda m: m.group(0) + '', text)
+    # text = re.sub(r'<td>\s*(.*?)\s*</td>', r'| \1 ', text)
+    # text = re.sub(r'(?:\| [^\n]+)+', lambda m: m.group(0) + '', text)
     return text.strip()
 
 
@@ -89,7 +88,7 @@ def clean_text(text: str) -> str:
 #  ! ทำความสะอาดข้อความ Chunk
 
 def clean_chunks(text: str) -> str:
-    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    # text = re.sub(r'\*(.*?)\*', r'\1', text)
     text = re.sub(r'__(.*?)__', r'\1', text)
     text = re.sub(r'`(.*?)`', r'\1', text) 
     text = text.replace('"', '')
@@ -261,7 +260,7 @@ def extract_data_from_csv(file_bytes: bytes) -> list[dict]:
     elif 'ประเภทรายการ' in df.columns:
         return group_nested_records(records, 'ประเภทรายการ', ['รายการ', 'ค่าธรรมเนียมฉบับละ', 'เพิ่มเติม'])
     elif 'ตารางสอน' in df.columns:
-        return group_nested_records(records, 'ตารางสอน', ['วันสอน', 'เวลาเรียน', 'ชื่อวิชา', 'ห้องสอน', 'ชั้น'])
+        return group_nested_records(records, 'ตารางสอน', ['วันสอน', 'เวลาสอน', 'ชื่อวิชา', 'ห้องสอน', 'ชั้น'])
     else:
         return records
 
@@ -316,101 +315,104 @@ def convert_record_to_text(record: list[dict]) -> list[str]:
     texts = []
     text = ""
     match first_key:
-        case 'การศึกษา':
-            first_group = ""
-            for rec in record:
-                if rec.get('การศึกษา', '-') == 'ปริญญาตรี':
-                    if first_group == rec.get('คณะ', '-'):
-                        text += f"\n*คณะ: {rec.get('คณะ', '-')}*"
-                        text += f"\nหลักสูตร: {rec.get('หลักสูตร', '-')}"
-                        text += f"\nระยะเวลาหลักสูตร: {rec.get('ระยะเวลาหลักสูตร', '-')}"
-                        text += f"\nสำเร็จการศึกษา: {rec.get('สำเร็จการศึกษา', '-')}"
-                        text += f"\nสาขา: "
-                        for field in rec.get('สาขา', []):
-                            text += f"{field}, "
-                    else:
-                        if first_group != "":
-                            texts.append(text.strip())
-                        text = f"การศึกษา: {rec.get('การศึกษา', '-')}"
-                        text += f"\n*คณะ: {rec.get('คณะ', '-')}*"
-                        text += f"\nหลักสูตร: {rec.get('หลักสูตร', '-')}"
-                        text += f"\nระยะเวลาหลักสูตร: {rec.get('ระยะเวลาหลักสูตร', '-')}"
-                        text += f"\nสำเร็จการศึกษา: {rec.get('สำเร็จการศึกษา', '-')}"
-                        text += f"\nสาขา: "
-                        for field in rec.get('สาขา', []):
-                            text += f"{field}, "
+        # case 'การศึกษา':
+        #     first_group = ""
+        #     for rec in record:
+        #         if rec.get('การศึกษา', '-') == 'ปริญญาตรี':
+        #             if first_group == rec.get('คณะ', '-'):
+        #                 text += f"\n*คณะ: {rec.get('คณะ', '-')}*"
+        #                 text += f"\nหลักสูตร: {rec.get('หลักสูตร', '-')}"
+        #                 text += f"\nระยะเวลาหลักสูตร: {rec.get('ระยะเวลาหลักสูตร', '-')}"
+        #                 text += f"\nสำเร็จการศึกษา: {rec.get('สำเร็จการศึกษา', '-')}"
+        #                 text += f"\nสาขา: "
+        #                 for field in rec.get('สาขา', []):
+        #                     text += f"{field}, "
+        #             else:
+        #                 if first_group != "":
+        #                     texts.append(text.strip())
+        #                 text = f"การศึกษา: {rec.get('การศึกษา', '-')}"
+        #                 text += f"\n*คณะ: {rec.get('คณะ', '-')}*"
+        #                 text += f"\nหลักสูตร: {rec.get('หลักสูตร', '-')}"
+        #                 text += f"\nระยะเวลาหลักสูตร: {rec.get('ระยะเวลาหลักสูตร', '-')}"
+        #                 text += f"\nสำเร็จการศึกษา: {rec.get('สำเร็จการศึกษา', '-')}"
+        #                 text += f"\nสาขา: "
+        #                 for field in rec.get('สาขา', []):
+        #                     text += f"{field}, "
                         
-                    first_group = rec.get('คณะ', '-')
-                else:
-                    if first_group == "":
-                        text += f"\n*คณะ: {rec.get('คณะ', '-')}*"
-                        text += f"\nหลักสูตร: {rec.get('หลักสูตร', '-')}"
-                        text += f"\nระยะเวลาหลักสูตร: {rec.get('ระยะเวลาหลักสูตร', '-')}"
-                        text += f"\nสำเร็จการศึกษา: {rec.get('สำเร็จการศึกษา', '-')}"
-                        text += f"\nสาขา: "
-                        for field in rec.get('สาขา', []):
-                            text += f"{field}, "
-                    else:
-                        if first_group != "":
-                            texts.append(text.strip())
-                        text = f"การศึกษา: {rec.get('การศึกษา', '-')}"
-                        text += f"\n*คณะ: {rec.get('คณะ', '-')}*"
-                        text += f"\nหลักสูตร: {rec.get('หลักสูตร', '-')}"
-                        text += f"\nระยะเวลาหลักสูตร: {rec.get('ระยะเวลาหลักสูตร', '-')}"
-                        text += f"\nสำเร็จการศึกษา: {rec.get('สำเร็จการศึกษา', '-')}"
-                        text += f"\nสาขา: "
-                        for field in rec.get('สาขา', []):
-                            text += f"{field}, "
-                        first_group = ""
+        #             first_group = rec.get('คณะ', '-')
+        #         else:
+        #             if first_group == "":
+        #                 text += f"\n*คณะ: {rec.get('คณะ', '-')}*"
+        #                 text += f"\nหลักสูตร: {rec.get('หลักสูตร', '-')}"
+        #                 text += f"\nระยะเวลาหลักสูตร: {rec.get('ระยะเวลาหลักสูตร', '-')}"
+        #                 text += f"\nสำเร็จการศึกษา: {rec.get('สำเร็จการศึกษา', '-')}"
+        #                 text += f"\nสาขา: "
+        #                 for field in rec.get('สาขา', []):
+        #                     text += f"{field}, "
+        #             else:
+        #                 if first_group != "":
+        #                     texts.append(text.strip())
+        #                 text = f"การศึกษา: {rec.get('การศึกษา', '-')}"
+        #                 text += f"\n*คณะ: {rec.get('คณะ', '-')}*"
+        #                 text += f"\nหลักสูตร: {rec.get('หลักสูตร', '-')}"
+        #                 text += f"\nระยะเวลาหลักสูตร: {rec.get('ระยะเวลาหลักสูตร', '-')}"
+        #                 text += f"\nสำเร็จการศึกษา: {rec.get('สำเร็จการศึกษา', '-')}"
+        #                 text += f"\nสาขา: "
+        #                 for field in rec.get('สาขา', []):
+        #                     text += f"{field}, "
+        #                 first_group = ""
         case 'อาจารย์สาขา':
-            text = f"**อาจารย์ประจำสาขาวิศวกรรมคอมพิวเตอร์**"
+            text = f"**อาจารย์ประจำสาขาวิศวกรรมคอมพิวเตอร์**\n"
             for rec in record:
-                text += f"\nชื่ออาจาร์: {rec.get('ชื่อ', '-')}"
-                text += f"\nตำแหน่ง: {rec.get('ตำแหน่ง', '-')}"
+                text += f"ชื่อ {rec.get('ชื่อ', '-')}"
+                text += f"\nตำแหน่ง: {rec.get('ตำแหน่ง', '-')}\n\n"
+            texts.append(text.strip())
         case 'วันหยุดราชการ':
-            text = f"**วันหยุดราชการ/วันหยุดสำคัญ**"
+            text = f"**วันหยุดราชการ/วันหยุดสำคัญ**\n"
             for rec in record:
-                text += f"**วันที่ {rec.get('วัน', '-')} /"
-                text += f"{rec.get('วันที่', '-')} {rec.get('เดือน', '-')}"
-                text += f" เป็นวันหยุดของ{rec.get('วันหยุดราชการ', '-')}**, "
+                date = rec.get('วัน', '-')
+                date = re.sub(r'-6\d', '', str(date))
+                date = re.sub(r'-', ' ', str(date))
+                text += f"(หยุด) {date} / "
+                text += f"{rec.get('วันที่', '-')} {rec.get('เดือน', '-')} "
+                text += f"{rec.get('วันหยุดราชการ', '-')}\n"
+            texts.append(text.strip())
         case 'ประเภทรายการ':
-            text = f"**รายการสำหรับขอหนังสือรับรองต่าง ๆ**"
             for rec in record:
-                text += f"\n\n*ประเภทรายการ: {rec.get('ประเภทรายการ', '-')}*"
+                text = f"**รายการขอหนังสือรับรอง {rec.get('ประเภทรายการ', '-')}**\n"
                 for field in rec.get('รายการทั้งหมด', []):
-                    text += f"\n\"รายการ: {field.get('รายการ', '-')}"
-                    text += f"\nค่าธรรมเนียมฉบับละ: {field.get('ค่าธรรมเนียมฉบับละ', '-')}"
-                    text += f" เพิ่มเติม: {field.get('เพิ่มเติม', '-')}\"\n"
+                    text += f"รายการ: {field.get('รายการ', '-')}"
+                    text += f"\nค่าธรรมเนียม/ฉบับ: {field.get('ค่าธรรมเนียมฉบับละ', '-')}"
+                    text += f"\nเพิ่มเติม: {field.get('เพิ่มเติม', '-')}\n\n"
+                texts.append(text.strip())
         case 'รหัสแบบฟอร์ม':
             for rec in record:
-                text += f"\n\n*รหัสแบบฟอร์ม: {rec.get('รหัสแบบฟอร์ม', '-')}*"
-                text += f"\nชื่อแบบฟอร์ม: {rec.get('ชื่อแบบฟอร์ม', '-')}"
+                text = f"**รหัสแบบฟอร์ม {rec.get('รหัสแบบฟอร์ม', '-')}**"
+                text += f"\nแบบฟอร์ม {rec.get('ชื่อแบบฟอร์ม', '-')}"
                 text += f"\nสิ่งที่ต้องกรอก: {rec.get('สิ่งที่ต้องกรอก', '-')}"
-                text += f"\nลำดับขั้นตอนการดำเนินการและติดต่อ: {rec.get('ลำดับขั้นตอนการดำเนินการและติดต่อ', '-')}"
-                text += f"\ส่งเอกสาร: {rec.get('ส่งเอกสาร', '-')}"
-                text += f"\เอกสารที่ต้องการ: {rec.get('เอกสารที่ต้องการ', '-')}"
-                text += f"\หมายเหตุ: {rec.get('หมายเหตุ', '-')}"
+                text += f"\nลำดับการดำเนินการและติดต่อ: {rec.get('ลำดับขั้นตอนการดำเนินการและติดต่อ', '-')}"
+                text += f"\nส่งเอกสารที่: {rec.get('ส่งเอกสาร', '-')}"
+                text += f"\nเอกสารแนบ: {rec.get('เอกสารที่ต้องการ', '-')}"
+                text += f"\nหมายเหตุ: {rec.get('หมายเหตุ', '-')}\n\n"
+                texts.append(text.strip())
         case 'ตารางสอน':
             for rec in record:
-                text = f"*ตารางสอน: {rec.get('ตารางสอน', '-')}*"
+                text = f"**ตารางสอน: {rec.get('ตารางสอน', '-')}**"
                 for field in rec.get('รายการทั้งหมด', []):
-                    text += f"\nวันสอน: {field.get('วันสอน', '-')}"
-                    text += f"\nเวลาสอน: {field.get('เวลาสอน', '-')}"
-                    text += f"\nชื่อวิชา: {field.get('ชื่อวิชา', '-')}"
-                    text += f"\nห้องสอน: {field.get('ห้องสอน', '-')}"
-                    text += f"\nชั้น: {field.get('ชั้น', '-')}"
-                    text += "\n"
+                    text += f"\nวัน{field.get('วันสอน', '-')}"
+                    text += f"\nเวลา: {field.get('เวลาสอน', '-')}"
+                    text += f"\nวิชา: {field.get('ชื่อวิชา', '-')}"
+                    text += f"\nห้อง: {field.get('ห้องสอน', '-')}"
+                    text += f"\nชั้น: {field.get('ชั้น', '-')}\n"
                 texts.append(text.strip())
         case 'อาคาร/ตึก':
-            text = f"**อาคาร/ตึก**"
             for rec in record:
-                text += f"\n\n*ชื่ออาคาร/ตึก: {rec.get('ชื่ออาคาร/ตึก', '-')}"
-                text += f"\nชื่ออาคาร: {rec.get('ชื่ออาคาร', '-')}"
-                text += f"\nรายละเอียดอาคาร: {rec.get('รายละเอียดอาคาร', '-')}"
+                text = f"**อาคาร: {rec.get('อาคาร/ตึก', '-')} / ตึก: {rec.get('อาคาร/ตึก', '-')}**"
+                text += f"\n{rec.get('ชื่ออาคาร', '-')}"
+                text += f"\nรายละเอียด: {rec.get('รายละเอียดอาคาร', '-')}"
                 for field in rec.get('ชั้นและห้อง', []):
                     text += f"\nชั้นและห้อง: {field}"
-                text += f"\nที่อยู่แผนที่: {rec.get('ที่อยู่แผนที่', '-')}"
+                text += f"\nลิ้งแผนที่: {rec.get('ที่อยู่แผนที่', '-')}\n\n"
+                texts.append(text.strip())
 
-    if text.strip():
-        texts.append(text.strip())
     return texts

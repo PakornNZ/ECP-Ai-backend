@@ -83,6 +83,7 @@ def retriever_context_with_llamaindex(
             f"#Description [{detail if detail else '-'}]\n"
             f"#Chunk index [{chunk_idx}]\n"
         )
+        text = text.replace('[EOL]', '\n')
         parts.append(f"{header}\n{text}\n\n")
         print(f"[SCORE]: {getattr(n, 'score', 0):.4f}")
     vector_data = "\n\n".join(parts) if parts else ""
