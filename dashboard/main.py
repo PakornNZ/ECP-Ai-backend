@@ -579,9 +579,9 @@ async def dashboard_upload_file(
                 )
             if type_file[1] != "csv":
                 if type_file[1] == "pdf" and int(chunk) == 0:
-                    data_chunk = await extract_data_from_pdf(data_file, start, stop)
+                    data_chunk = extract_data_from_pdf(data_file, start, stop)
                 else:
-                    data_text = await extract_data_from_file(data_file, type_file[1], start, stop)
+                    data_text = extract_data_from_file(data_file, type_file[1], start, stop)
 
                     if not data_text or data_text == "":
                         return JSONResponse(

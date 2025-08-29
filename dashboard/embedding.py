@@ -118,7 +118,7 @@ def model_embed(chunks: list[str]) -> list[list[float]]:
 
 # ! ดึงข้อมูลจากไฟลเป็นข้อความ
 
-async def extract_data_from_file(file_bytes: bytes, file_type: str, start: str, stop: str) -> str:
+def extract_data_from_file(file_bytes: bytes, file_type: str, start: str, stop: str) -> str:
     data_text = []
     match file_type :
         case 'txt':
@@ -182,7 +182,7 @@ async def extract_data_from_file(file_bytes: bytes, file_type: str, start: str, 
 
 # ! ดึงข้อมูลจากไฟล์ pdf แยกเป็นหน้า
 
-async def extract_data_from_pdf(file_bytes: bytes, start: str, stop: str) -> list[str]:
+def extract_data_from_pdf(file_bytes: bytes, start: str, stop: str) -> list[str]:
     chunks = []
     with BytesIO(file_bytes) as pdf_stream:
         contents = PdfReader(pdf_stream)
@@ -362,10 +362,13 @@ def convert_record_to_text(record: list[dict]) -> list[str]:
         #                     text += f"{field}, "
         #                 first_group = ""
         case 'อาจารย์สาขา':
-            text = f"**อาจารย์ประจำสาขาวิศวกรรมคอมพิวเตอร์**\n"
+            text = f"**รายชื่ออาจารย์ประจำสาขาวิศวกรรมคอมพิวเตอร์**\n"
             for rec in record:
                 text += f"ชื่อ {rec.get('ชื่อ', '-')}"
-                text += f"\nตำแหน่ง: {rec.get('ตำแหน่ง', '-')}\n\n"
+                text += f"\nตำแหน่ง: {rec.get('ตำแหน่ง', '-')}"
+                if rec.get('ที่ปรึกษา', '-') != '-':
+                    text += f"\nที่ปรึกษาชั้น {rec.get('ที่ปรึกษา', '-')}"
+                text += "\n\n"
             texts.append(text.strip())
         case 'วันหยุดราชการ':
             text = f"**วันหยุดราชการ/วันหยุดสำคัญ**\n"
@@ -397,7 +400,7 @@ def convert_record_to_text(record: list[dict]) -> list[str]:
                 texts.append(text.strip())
         case 'ตารางสอน':
             for rec in record:
-                text = f"**ตารางสอน: {rec.get('ตารางสอน', '-')}**"
+                text = f"**ตารางสอน {rec.get('ตารางสอน', '-')}**"
                 for field in rec.get('รายการทั้งหมด', []):
                     text += f"\nวัน{field.get('วันสอน', '-')}"
                     text += f"\nเวลา: {field.get('เวลาสอน', '-')}"
@@ -407,12 +410,24 @@ def convert_record_to_text(record: list[dict]) -> list[str]:
                 texts.append(text.strip())
         case 'อาคาร/ตึก':
             for rec in record:
-                text = f"**อาคาร: {rec.get('อาคาร/ตึก', '-')} / ตึก: {rec.get('อาคาร/ตึก', '-')}**"
+                text = f"**อาคาร {rec.get('อาคาร/ตึก', '-')} / ตึก {rec.get('อาคาร/ตึก', '-')}**"
                 text += f"\n{rec.get('ชื่ออาคาร', '-')}"
                 text += f"\nรายละเอียด: {rec.get('รายละเอียดอาคาร', '-')}"
                 for field in rec.get('ชั้นและห้อง', []):
                     text += f"\nชั้นและห้อง: {field}"
                 text += f"\nลิ้งแผนที่: {rec.get('ที่อยู่แผนที่', '-')}\n\n"
                 texts.append(text.strip())
+        case 'ปฏิทินการศึกษา' :
+            text = f"**ปฏิทินการศึกษา{record[0].get('ปฏิทินการศึกษา')}**"
+            for rec in record:
+                text += f"\n{rec.get('กิจกรรม', '-')}"
+                text += "\nภาคการศึกษา / เทอม"
+                text += f"\nที่1 : {rec.get('วันที่ (ภาคการศึกษาที่ 1)', '-')}"
+                if rec.get('วันที่ (ภาคการศึกษาที่ 2)', '-') != '-':
+                    text += f"\nที่2 : {rec.get('วันที่ (ภาคการศึกษาที่ 2)', '-')}"
+                if rec.get('วันที่ (ภาคการศึกษาฤดูร้อน)', '-') != '-':
+                    text += f"\nฤดูร้อน : {rec.get('วันที่ (ภาคการศึกษาฤดูร้อน)', '-')}"
+                text += "\n\n"
+            texts.append(text.strip())
 
     return texts

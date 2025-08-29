@@ -84,9 +84,9 @@ def retriever_context_with_llamaindex(
             f"#Chunk index [{chunk_idx}]\n"
         )
         text = text.replace('[EOL]', '\n')
-        parts.append(f"{header}\n{text}\n\n")
+        parts.append(f"{header}\n{text}")
         print(f"[SCORE]: {getattr(n, 'score', 0):.4f}")
-    vector_data = "\n\n".join(parts) if parts else ""
+    vector_data = "\n\n\n".join(parts) if parts else ""
 
     return  vector_data, (verify_date or "")
 
@@ -332,5 +332,39 @@ async def modelAi_topic_chat(query: str) -> str :
         result = response.json().get("message", {}).get("content", "").strip()
         result = re.sub(r'[^\w\s\u0E00-\u0E7F]', '', result)
         return result
+    except Exception as e:
+        return ""
+    
+
+
+
+# ! ใช้สำหรับการทดสอบ
+
+def modelAi_response_testing_llamaindex(query: str) -> str:
+    try:
+        vector_data, verify_date = retriever_context_with_llamaindex(
+            user_query=query
+        )
+
+        prompt = f"""
+[ROLE]: You are an intelligent assistant that answers questions **only in Thai**.  
+You must use only the information from [REFERENCE DATA].  
+If no relevant information is found, respond with: "ไม่มีข้อมูลเพียงพอสำหรับคำถาม".
+
+{"[DATE HINT]: " + verify_date if verify_date else ""}
+
+-----
+[REFERENCE DATA]:
+{vector_data if vector_data else "-"}
+-----
+
+[QUESTION]:
+{query}
+"""
+        print("-------------------------------------------------------------------\n\n")
+        print(prompt)
+        print("\n\n-------------------------------------------------------------------")
+
+        return prompt
     except Exception as e:
         return ""

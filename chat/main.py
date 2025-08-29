@@ -477,3 +477,33 @@ def handle_image(event: MessageEvent):
                 messages=[TextMessage(text=response_message)]
             )
         )
+
+
+
+
+
+# ! ใข้สำหรับทดสอบ
+
+@app.post("/chat/testing", tags=["TEST"])
+def testing (data: GuestResponeChatSchema):
+    try :
+        respone = modelAi_response_testing_llamaindex(data.message)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 1,
+                "message": "",
+                "data": {
+                    "answer": respone
+                }
+            }
+        )
+    except Exception as error :
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 0,
+                "message": str(error),
+                "data": {}
+            }
+        )

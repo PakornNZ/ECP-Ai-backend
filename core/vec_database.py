@@ -9,7 +9,7 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 COLLECTION_NAME = "ecp-ai"
 client = QdrantClient(
         url=QDRANT_URL,
-        api_key=QDRANT_API_KEY
+        # api_key=QDRANT_API_KEY
     )
 
 # points = client.scroll(COLLECTION_NAME, with_vectors=True, with_payload=True, limit=10000)
