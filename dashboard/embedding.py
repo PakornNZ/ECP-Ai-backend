@@ -382,7 +382,7 @@ def convert_record_to_text(record: list[dict]) -> list[str]:
             texts.append(text.strip())
         case 'ประเภทรายการ':
             for rec in record:
-                text = f"**รายการขอหนังสือรับรอง {rec.get('ประเภทรายการ', '-')}**\n"
+                text = f"**รายการขอ {rec.get('ประเภทรายการ', '-')}**\n"
                 for field in rec.get('รายการทั้งหมด', []):
                     text += f"รายการ: {field.get('รายการ', '-')}"
                     text += f"\nค่าธรรมเนียม/ฉบับ: {field.get('ค่าธรรมเนียมฉบับละ', '-')}"
@@ -418,9 +418,9 @@ def convert_record_to_text(record: list[dict]) -> list[str]:
                 text += f"\nลิ้งแผนที่: {rec.get('ที่อยู่แผนที่', '-')}\n\n"
                 texts.append(text.strip())
         case 'ปฏิทินการศึกษา' :
-            text = f"**ปฏิทินการศึกษา{record[0].get('ปฏิทินการศึกษา')}**"
+            text = f"**ปฏิทินการศึกษา{record[0].get('ปฏิทินการศึกษา')}**\n"
             for rec in record:
-                text += f"\n{rec.get('กิจกรรม', '-')}"
+                text += f"{rec.get('กิจกรรม', '-')}"
                 text += "\nภาคการศึกษา / เทอม"
                 text += f"\nที่1 : {rec.get('วันที่ (ภาคการศึกษาที่ 1)', '-')}"
                 if rec.get('วันที่ (ภาคการศึกษาที่ 2)', '-') != '-':

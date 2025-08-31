@@ -1,6 +1,7 @@
 .env
 .venv
-files_storage
-__pycache__
+files_storage/
+files_text/
+__pycache__/
 models/
-ollama-local
+ollama-local/

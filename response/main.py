@@ -79,7 +79,7 @@ def retriever_context_with_llamaindex(
         chunk_idx = meta.get("chunk_index", "")
 
         header = (
-            f"#Document [{name}]\n"
+            f"\n#Document [{name}]\n"
             f"#Description [{detail if detail else '-'}]\n"
             f"#Chunk index [{chunk_idx}]\n"
         )
@@ -305,7 +305,6 @@ async def modelAi_topic_chat(query: str) -> str :
                 "ห้ามตอบเป็นประโยคยาว และห้ามสร้างคำตอบที่ไม่เกี่ยวข้อง "
                 "ตัวอย่าง: "
                 "ถ้าคำถามคือ 'สวัสดี' คุณตอบว่า 'การทักทาย' "
-                "ถ้าคำถามคือ 'อธิบายการทำงานของ AI' คุณตอบว่า 'AI ทำงานอย่างไร'"
             )
         },
         {
@@ -331,6 +330,7 @@ async def modelAi_topic_chat(query: str) -> str :
         response.raise_for_status()
         result = response.json().get("message", {}).get("content", "").strip()
         result = re.sub(r'[^\w\s\u0E00-\u0E7F]', '', result)
+        result.split()
         return result
     except Exception as e:
         return ""
