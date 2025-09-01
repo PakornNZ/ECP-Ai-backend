@@ -367,7 +367,7 @@ def convert_record_to_text(record: list[dict]) -> list[str]:
                 text += f"ชื่อ {rec.get('ชื่อ', '-')}"
                 text += f"\nตำแหน่ง: {rec.get('ตำแหน่ง', '-')}"
                 if rec.get('ที่ปรึกษา', '-') != '-':
-                    text += f"\nที่ปรึกษาชั้น {rec.get('ที่ปรึกษา', '-')}"
+                    text += f"\nที่ปรึกษาชั้น: {rec.get('ที่ปรึกษา', '-')}"
                 text += "\n\n"
             texts.append(text.strip())
         case 'วันหยุดราชการ':
@@ -427,7 +427,7 @@ def convert_record_to_text(record: list[dict]) -> list[str]:
                     text += f"\nที่2 : {rec.get('วันที่ (ภาคการศึกษาที่ 2)', '-')}"
                 if rec.get('วันที่ (ภาคการศึกษาฤดูร้อน)', '-') != '-':
                     text += f"\nฤดูร้อน : {rec.get('วันที่ (ภาคการศึกษาฤดูร้อน)', '-')}"
-                text += "\n\n"
+                text += "\n"
             texts.append(text.strip())
 
     return texts

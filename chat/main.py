@@ -64,7 +64,7 @@ async def user_new_topic(data: ResponeChatSchema, session: SessionDep, user = De
                 }
             )
         
-        response = await modelAi_topic_chat(data.query)
+        response = modelAi_topic_chat(data.query)
         if response == "":
             return JSONResponse(
                 status_code=500,
@@ -406,7 +406,7 @@ def handle_message(event: MessageEvent):
                 response = "ระบบตอบคำถามไม่พร้อมใช้งานในขณะนี้"
             else:
                 response = re.sub(r'<.*?>', '', response)
-                response = re.sub(r'\s+', '', response).strip()
+                # response = re.sub(r'\s+', '', response).strip()
                 response = re.sub(r'[^\w\s\u0E00-\u0E7F:/?&=._,@!()\-+]', '', response)
                 new_message = LineMessages(
                     line_user_id=get_user_by_id.line_user_id,
@@ -488,6 +488,34 @@ def handle_image(event: MessageEvent):
 def testing (data: GuestResponeChatSchema):
     try :
         respone = modelAi_response_testing_llamaindex(data.message)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 1,
+                "message": "",
+                "data": {
+                    "answer": respone
+                }
+            }
+        )
+    except Exception as error :
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 0,
+                "message": str(error),
+                "data": {}
+            }
+        )
+
+
+
+# ! ใช้สำหรับทดสอบ ตั้งชื่อหัวข้อการสนทนา
+
+@app.post("/chat/testing_topic", tags=["TEST"])
+async def testing_topic (data: GuestResponeChatSchema):
+    try :
+        respone = modelAi_topic_chat(data.message)
         return JSONResponse(
             status_code=200,
             content={
