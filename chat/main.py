@@ -387,9 +387,13 @@ def handle_message(event: MessageEvent):
                 session.add(new_user)
                 session.commit()
 
+            time = datetime.now() - timedelta(hours=5)
             recent_messages = session.exec(
                 select(LineMessages)
-                .where(LineMessages.line_user_id == get_user_by_id.line_user_id)
+                .where(
+                    (LineMessages.line_user_id == get_user_by_id.line_user_id) &
+                    (LineMessages.create_at >= time)
+                )
                 .order_by(desc(LineMessages.create_at))
                 .limit(5)
             ).all()
