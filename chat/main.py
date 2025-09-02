@@ -387,7 +387,7 @@ def handle_message(event: MessageEvent):
                 session.add(new_user)
                 session.commit()
 
-            time = datetime.now() - timedelta(hours=5)
+            time = datetime.now() - timedelta(hours=12)
             recent_messages = session.exec(
                 select(LineMessages)
                 .where(
