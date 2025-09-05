@@ -115,12 +115,10 @@ def modelAi_response_guest_llamaindex(query: str) -> str:
             user_query=query
         )
 
+# [ROLE]: You are an intelligent assistant that answers questions **only in Thai**.  
+# You must use only the information from [REFERENCE DATA].
         prompt = f"""
-[ROLE]: You are an intelligent assistant that answers questions **only in Thai**.  
-You must use only the information from [REFERENCE DATA].
-
-{"[DATE HINT]: " + verify_date if verify_date else ""}
-
+{"[DATE HINT]: " + verify_date if verify_date else "" + "\n"}
 -----
 [REFERENCE DATA]:
 {vector_data if vector_data else "-"}
@@ -152,12 +150,10 @@ def modelAi_response_user_llamaindex(
 # - "ขออภัย ไม่พบข้อมูลที่เกี่ยวข้องกับคำถามนี้"  
 # - "ตอนนี้ยังไม่มีข้อมูลเพียงพอสำหรับคำถามนี้"  
 # - "ไม่สามารถหาข้อมูลที่เกี่ยวข้องได้จากข้อมูลอ้างอิง"
+# [ROLE]: You are an intelligent assistant that answers questions **only in Thai**.  
+# You must use only the information from [REFERENCE DATA].
         prompt = f"""
-[ROLE]: You are an intelligent assistant that answers questions **only in Thai**.  
-You must use only the information from [REFERENCE DATA].
-
-{"[DATE HINT]: " + verify_date if verify_date else ""}
-
+{"[DATE HINT]: " + verify_date if verify_date else "" + "\n"}
 -----
 [REFERENCE DATA]:
 {vector_data if vector_data else "-"}
@@ -269,19 +265,33 @@ def query_search_day(query: str) -> str | None:
 def model_generate_answer(prompt: str) -> str:
     print("-------------------------------------------------------------------")
     print(f"Prompt: \n\n{prompt}")
+    message = [
+        {
+            "role": "system",
+            "content": (
+                "You are an intelligent assistant that answers questions **only in Thai**."
+                "You must use only the information from [REFERENCE DATA]."
+                # " If no relevant information is found in [REFERENCE DATA],"
+                # " you should politely respond in a natural"  
+                # " - ขออภัย ไม่พบข้อมูลที่เกี่ยวข้องกับคำถามนี้"  
+                # " - ตอนนี้ยังไม่มีข้อมูลเพียงพอสำหรับคำถามนี้"
+            )
+        },
+        {
+            "role": "user",
+            "content": prompt
+        }
+    ]
     try:
         response = requests.post(
             RESPONSE_URL,
             json={
                 "model": RESPONSE_MODEL,
-                "messages": [{
-                    "role": "user",
-                    "content": prompt
-                }],
+                "messages": message,
                 "stream": False,
                 "options": {
-                    "temperature": 0.5,
-                    "top_p": 0.9,
+                    "temperature": 0.4,
+                    "top_p": 1,
                     "max_tokens": 2048
                 }
             }
@@ -308,6 +318,7 @@ def modelAi_topic_chat(query: str) -> str :
                 "คำถาม: สวัสดี ยินดีที่ได้รู้จัก\nคำตอบ: การทักทาย\n"
                 "คำถาม: ขอตารางสอนวันจันทร์ของอาจารย์\nคำตอบ: ตารางสอนของอาจารย์\n"
                 "คำถาม: แบบฟอร์มคำร้องนักศึกษารหัส RE.09\nคำตอบ: แบบฟอร์ม RE.09\n"
+                "คำถาม: ECP4R\nคำตอบ: ECP4R\n"
             )
         },
         {

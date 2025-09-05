@@ -362,7 +362,7 @@ def convert_record_to_text(record: list[dict]) -> list[str]:
         #                     text += f"{field}, "
         #                 first_group = ""
         case 'อาจารย์สาขา':
-            text = f"**รายชื่ออาจารย์ประจำสาขาวิศวกรรมคอมพิวเตอร์**\n"
+            text = f"**รายชื่ออาจารย์ประจำสาขาวิศวกรรมคอมพิวเตอร์ ทั้งหมด {len(record)} ท่าน**\n"
             for rec in record:
                 text += f"ชื่อ {rec.get('ชื่อ', '-')}"
                 text += f"\nตำแหน่ง: {rec.get('ตำแหน่ง', '-')}"
