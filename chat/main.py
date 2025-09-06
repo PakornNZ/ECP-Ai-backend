@@ -27,7 +27,9 @@ async def user_new_chat(session: SessionDep, user = Depends(get_user)):
                 "status": 1,
                 "message": "",
                 "data": {
-                    "chat_id": new_chat.web_chat_id
+                    "id": new_chat.web_chat_id,
+                    "chat_history": new_chat.chat_name,
+                    "date": new_chat.create_at.replace(microsecond=0).isoformat()
                 }
             }   
         )

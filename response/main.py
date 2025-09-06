@@ -291,7 +291,7 @@ def model_generate_answer(prompt: str) -> str:
                 "stream": False,
                 "options": {
                     "temperature": 0.4,
-                    "top_p": 1,
+                    "top_p": 0.9,
                     "max_tokens": 2048
                 }
             }
