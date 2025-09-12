@@ -804,7 +804,7 @@ def oauth_login(data: dict, session: SessionDep):
             if conflict:
                 conflict_provider = conflict[1].provider
                 if (conflict_provider == "credentials"):
-                    conflict_provider = "ระบบเว็บไซต์"
+                    conflict_provider = "ระบบเว็บ"
                 return JSONResponse(
                     status_code=400,
                     content={

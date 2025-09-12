@@ -846,6 +846,16 @@ def dashboard_edit_chat(data: DashboardEditChat, session: SessionDep, user = Dep
 def dashboard_edit_file(data: DashboardEditFile, session: SessionDep, user = Depends(get_user)):
     print(f"ID {user["id"]} Edit File ID {data.id}")
 
+    if data.name is None or data.name == "":
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": 0,
+                "message": "กรุณาระบุชื่อเอกสาร",
+                "data": {}
+            }
+        )
+    
     verify_user = session.exec(
         select(WebUsers)
         .where(WebUsers.web_user_id == user["id"])
@@ -881,7 +891,7 @@ def dashboard_edit_file(data: DashboardEditFile, session: SessionDep, user = Dep
         .where(RagFiles.name == data.name, RagFiles.type == data.type)
     ).first()
 
-    if file_name_research:
+    if file_name_research.rag_file_id != update_file.rag_file_id:
         return JSONResponse(
             status_code=422,
             content={

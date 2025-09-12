@@ -242,7 +242,42 @@ def chat_delete(data: ChatDeleteSchema, session: SessionDep, user = Depends(get_
         )
 
 
-# ! รัน FastAPI
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8010)
+
+# ! สร้างห้องการสนทนาเพื่อตอบกลับไอดี
+
+@app.post("/chat/new_chat", tags=["CHAT"])
+async def user_new_chat(session: SessionDep, user = Depends(get_user)):
+
+    try :
+        new_chat = WebChats(
+            web_user_id=user["id"],
+            chat_name="[ห้องสนทนาใหม่]",
+            create_at=datetime.now(),
+            update_at=datetime.now()
+        )
+
+        session.add(new_chat)
+        session.commit()
+        session.refresh(new_chat)
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 1,
+                "message": "",
+                "data": {
+                    "id": new_chat.web_chat_id,
+                    "chat_history": new_chat.chat_name,
+                    "date": new_chat.create_at.replace(microsecond=0).isoformat()
+                }
+            }   
+        )
+    except Exception as error :
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 0,
+                "message": str(error),
+                "data": {}
+            }
+        )

@@ -10,7 +10,6 @@ load_dotenv()
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
 RESPONSE_URL = os.getenv("OLLAMA_URL")
 RESPONSE_MODEL = os.getenv("RESPONSE_MODEL")
-TOPIC_MODEL = os.getenv("TOPIC_MODEL")
 
 
 
@@ -137,12 +136,16 @@ def modelAi_response_guest_llamaindex(query: str) -> str:
 
 def modelAi_response_user_llamaindex(
     query: str,
-    recent_message_text: str | None = None
+    recent_message_text: str | None = None,
+    recent_query: str | None = None
 ) -> str:
+    query_search = query
+    if recent_query != "" and recent_query is not None:
+        query_search = recent_query
     
     try :
         vector_data, verify_date = retriever_context_with_llamaindex(
-            user_query=query
+            user_query=query_search
         )
 
 # If no relevant information is found in [REFERENCE DATA],  
@@ -243,7 +246,7 @@ def query_search_day(query: str) -> str | None:
     thai_day = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"]
     thai_month = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
     thai_year = now.year + 543
-    today_keywords = ["วัน", "วันนี้", "ปัจจุบัน", "ตอนนี้", "เดี๋ยวนี้", "ขณะนี้", "เดือนนี้", "ปีนี้", "กี่โมง", "เวลา", "โมง", "นาที"]
+    today_keywords = ["วัน", "วันนี้", "ปัจจุบัน", "ตอนนี้", "เดี๋ยวนี้", "ขณะนี้", "เดือน", "ปีนี้", "กี่โมง", "เวลา", "โมง", "นาที"]
     yesterday_keywords = ["เมื่อวาน", "วานนี้", "เมื่อวาน", "วันก่อน", "เมื่อวา"]
     tomorrow_keywords = ["พรุ่งนี้", "วันถัดไป", "วันต่อไป", "วันหน้า", "วันพรุ"]
 
@@ -260,6 +263,20 @@ def query_search_day(query: str) -> str | None:
 
 
 
+def format_recent_message(recent_messages: list[dict]) -> str:
+    recent_message_text = ""
+    for index, msg in enumerate(recent_messages[::-1], 1):
+        recent_message_text += f"Q{index}: {msg.query_message}\n"
+        recent_message_text += f"A{index}: {msg.response_message}\n\n"
+    return recent_message_text
+
+
+def format_recent_query(query: str, recent_message: list[dict]) -> str:
+    # return f"{query}\n{recent_message[0].query_message}" if recent_message else query
+    return query
+
+
+
 # ! สร้างคำตอบจากโมเดล AI
 
 def model_generate_answer(prompt: str) -> str:
@@ -271,8 +288,8 @@ def model_generate_answer(prompt: str) -> str:
             "content": (
                 "You are an intelligent assistant that answers questions **only in Thai**."
                 "You must use only the information from [REFERENCE DATA]."
-                # " If no relevant information is found in [REFERENCE DATA],"
-                # " you should politely respond in a natural"  
+                " If no relevant information is found in [REFERENCE DATA],"
+                " you should politely respond in a natural"  
                 # " - ขออภัย ไม่พบข้อมูลที่เกี่ยวข้องกับคำถามนี้"  
                 # " - ตอนนี้ยังไม่มีข้อมูลเพียงพอสำหรับคำถามนี้"
             )
@@ -318,12 +335,12 @@ def modelAi_topic_chat(query: str) -> str :
                 "คำถาม: สวัสดี ยินดีที่ได้รู้จัก\nคำตอบ: การทักทาย\n"
                 "คำถาม: ขอตารางสอนวันจันทร์ของอาจารย์\nคำตอบ: ตารางสอนของอาจารย์\n"
                 "คำถาม: แบบฟอร์มคำร้องนักศึกษารหัส RE.09\nคำตอบ: แบบฟอร์ม RE.09\n"
-                "คำถาม: ECP4R\nคำตอบ: ECP4R\n"
+                # "คำถาม: ECP4R\nคำตอบ: ECP4R\n"
             )
         },
         {
             "role": "user",
-            "content": f"""คำถามเพื่อใช้ตั้งหัวข้อไม่เกิน 10คำ: {query}"""
+            "content": f"""[Role]: หน้าที่ของคุณคือการวิเคราะห์ข้อความของผู้ใช้และระบุประเภทของคำถามด้วยคำศัพท์เพียงคำเดียวหรือวลีสั้นๆ\n[คำถามเพื่อใช้สร้างหัวข้อ]: {query}"""
         }
     ]
 
@@ -331,7 +348,7 @@ def modelAi_topic_chat(query: str) -> str :
         response = requests.post(
             RESPONSE_URL,
             json={
-                "model": TOPIC_MODEL,
+                "model": RESPONSE_MODEL,
                 "messages": message,
                 "stream": False,
                 "options": {
@@ -375,10 +392,38 @@ If no relevant information is found, respond with: "ไม่มีข้อม�
 [QUESTION]:
 {query}
 """
-        print("-------------------------------------------------------------------\n\n")
-        print(prompt)
-        print("\n\n-------------------------------------------------------------------")
+        # print("-------------------------------------------------------------------\n\n")
+        # print(prompt)
+        # print("\n\n-------------------------------------------------------------------")
 
         return prompt
     except Exception as e:
         return ""
+    
+
+
+# ! เรียก ollama
+
+async def modelAi_call_ollama():
+    message = [
+        {
+            "role": "user",
+            "content": ""
+        }
+    ]
+    try:
+        requests.post(
+            RESPONSE_URL,
+            json={
+                "model": RESPONSE_MODEL,
+                "messages": message,
+                "stream": False,
+                "options": {
+                    "temperature": 0.1,
+                    "top_p": 1,
+                    "max_tokens": 10,
+                }
+            }
+        )
+    except Exception as e:
+        print(f"Error in modelAi_call_ollama: {e}")

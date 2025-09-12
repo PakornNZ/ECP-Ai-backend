@@ -4,47 +4,6 @@ from core.vec_database import *
 
 
 
-# ! สร้างห้องการสนทนาเพื่อตอบกลับไอดี
-
-@app.post("/chat/new_chat", tags=["CHAT"])
-async def user_new_chat(session: SessionDep, user = Depends(get_user)):
-
-    try :
-        new_chat = WebChats(
-            web_user_id=user["id"],
-            chat_name="[ห้องสนทนาใหม่]",
-            create_at=datetime.now(),
-            update_at=datetime.now()
-        )
-
-        session.add(new_chat)
-        session.commit()
-        session.refresh(new_chat)
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": 1,
-                "message": "",
-                "data": {
-                    "id": new_chat.web_chat_id,
-                    "chat_history": new_chat.chat_name,
-                    "date": new_chat.create_at.replace(microsecond=0).isoformat()
-                }
-            }   
-        )
-    except Exception as error :
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": 0,
-                "message": str(error),
-                "data": {}
-            }
-        )
-
-
-
 # ! สร้างชื่อหัวข้อการสนทนาใหม่
 
 @app.put("/chat/new_topic", tags=["CHAT"])
@@ -136,11 +95,11 @@ async def respone_answer (data: ResponeChatSchema, session: SessionDep, user = D
         ).all()
         
         recent_message_text = ""
+        recent_query = ""
         if recent_messages:
-            for index, msg in enumerate(recent_messages[::-1], 1):
-                recent_message_text += f"Q{index}: {msg.query_message}\n"
-                recent_message_text += f"A{index}: {msg.response_message}\n\n"
-        response = modelAi_response_user_llamaindex(data.query, recent_message_text) 
+            recent_query = format_recent_query(data.query, recent_messages)
+            recent_message_text = format_recent_message(recent_messages)
+        response = modelAi_response_user_llamaindex(data.query, recent_message_text, recent_query) 
         if response == "":
             return JSONResponse(
                 status_code=500,
@@ -228,13 +187,13 @@ async def edit_respone_answer (data: ResponeChatEditSchema, session: SessionDep,
         ).all()
 
         recent_message_text = ""
+        recent_query = ""
         if recent_messages:
             recent_messages.pop(0)
             if len(recent_messages) > 0:
-                for index, msg in enumerate(recent_messages[::-1], 1):
-                    recent_message_text += f"Q{index}: {msg.query_message}\n"
-                    recent_message_text += f"A{index}: {msg.response_message}\n\n"
-        response = modelAi_response_user_llamaindex(data.query, recent_message_text) 
+                recent_query = format_recent_query(data.query, recent_messages)
+                recent_message_text = format_recent_message(recent_messages)
+        response = modelAi_response_user_llamaindex(data.query, recent_message_text, recent_query) 
         
         if response == "":
             return JSONResponse(
@@ -324,7 +283,7 @@ async def guest_response_answer (data: GuestResponeChatSchema):
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage, FlexMessage, FlexContainer
-from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent, VideoMessageContent, AudioMessageContent, LocationMessageContent
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent, VideoMessageContent, AudioMessageContent, LocationMessageContent, StickerMessageContent
 
 from chat.building import get_building_flex_message
 
@@ -401,12 +360,11 @@ def handle_message(event: MessageEvent):
             ).all()
 
             recent_message_text = ""
+            recent_query = ""
             if recent_messages:
-                for index, msg in enumerate(recent_messages[::-1], 1):
-                    recent_message_text += f"Q{index}: {msg.query_message}\n"
-                    recent_message_text += f"A{index}: {msg.response_message}\n\n"
-
-            response = modelAi_response_user_llamaindex(user_message, recent_message_text)
+                recent_query = format_recent_query(user_message, recent_messages)
+                recent_message_text = format_recent_message(recent_messages)
+            response = modelAi_response_user_llamaindex(user_message, recent_message_text, recent_query)
             
             if response == "":
                 response = "ระบบตอบคำถามไม่พร้อมใช้งานในขณะนี้"
@@ -434,8 +392,20 @@ def handle_message(event: MessageEvent):
             )
         )
 
+@handler.add(MessageEvent, message=StickerMessageContent)
+def handle_sticker(event: MessageEvent):
+    response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
+
+    with ApiClient(configuration) as api_client:
+        MessagingApi(api_client).reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=response_message)]
+            )
+        )
+
 @handler.add(MessageEvent, message=ImageMessageContent)
-async def handle_image(event: MessageEvent):
+def handle_image(event: MessageEvent):
     response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
 
     with ApiClient(configuration) as api_client:
@@ -447,7 +417,7 @@ async def handle_image(event: MessageEvent):
         )
 
 @handler.add(MessageEvent, message=VideoMessageContent)
-def handle_image(event: MessageEvent):
+def handle_video(event: MessageEvent):
     response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
 
     with ApiClient(configuration) as api_client:
@@ -460,7 +430,7 @@ def handle_image(event: MessageEvent):
 
 
 @handler.add(MessageEvent, message=AudioMessageContent)
-def handle_image(event: MessageEvent):
+def handle_audio(event: MessageEvent):
     response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
 
     with ApiClient(configuration) as api_client:
@@ -473,7 +443,7 @@ def handle_image(event: MessageEvent):
 
 
 @handler.add(MessageEvent, message=LocationMessageContent)
-def handle_image(event: MessageEvent):
+def handle_location(event: MessageEvent):
     response_message = "ระบบรองรับเฉพาะข้อความเท่านั้น"
 
     with ApiClient(configuration) as api_client:
@@ -541,3 +511,18 @@ async def testing_topic (data: GuestResponeChatSchema):
                 "data": {}
             }
         )
+    
+
+
+# ! เรียก Ollama
+
+async def call_ollama():
+    try:
+        await modelAi_call_ollama()
+    except Exception as e:
+        print(f"Not found ollama model: {e}")
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+scheduler = AsyncIOScheduler()
+scheduler.add_job(func=call_ollama, trigger='interval', minutes=4)
+scheduler.start()
